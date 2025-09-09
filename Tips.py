@@ -49,6 +49,7 @@ there are some rules you must follow:
 (3) just answer according to the format that I have given you.
 (4) Remember just answer me in the given format without any other words appearing.
 (5) Don't output any sentences that are not useful for the editing task; make sure that the sentences only work for the editing task!
+(6)Ensure each of answer's length is less than 3 times of original!
 For example:
 Scene:
 	{{
@@ -135,7 +136,7 @@ Your answer:
      "person with a green hooded jacket:person with a yay pose",
      "a vast grassy meadow with rolling green hills:a vast grass land"
     ]
-    You should ensure what you describe will work good for GrounDingDINO and CLIP for next step work.
+    You should ensure what you describe will work good for GrounDingDINO and CLIP for next step work in details.
     
 (4)More specifically, you need to follow this format
 	[

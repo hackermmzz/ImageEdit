@@ -16,6 +16,7 @@ import base64
 from transformers import CLIPModel, CLIPProcessor
 from scipy.spatial.distance import cosine
 from volcenginesdkarkruntime import Ark
+import random
 ######################################指定设备
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 #######################################
@@ -129,6 +130,7 @@ client = Ark(
 )
 def AnswerText(question:str):
     ##########################调用豆包大模型
+    try:
         # Non-streaming:
         completion = client.chat.completions.create(
             # 指定您创建的方舟推理接入点 ID，此处已帮您修改为您的推理接入点 ID
@@ -138,6 +140,9 @@ def AnswerText(question:str):
             ],
         )
         return completion.choices[0].message.content
+    except Exception as e:
+        Debug(e)
+        return AnswerText(question)
     ############################
         processor=LLM.processor
         model=LLM.model
@@ -175,21 +180,25 @@ def AnswerText(question:str):
 
 def AnswerImage(images:list,text:str):
     #####################
-    response = client.chat.completions.create(
-    # 指定您创建的方舟推理接入点 ID，此处已帮您修改为您的推理接入点 ID
-    model="doubao-seed-1-6-vision-250815",
-    messages=[
-        {
-            "role": "user",
-            "content": [
-                    {"type": "text", "text": f"{text}"},
-            ]+
-            [ {"type": "image_url", "image_url": {"url": encode_image(image)}} for image in images]
-            ,
-        }
-    ],
-    )
-    return (response.choices[0].message.content)
+    try:
+        response = client.chat.completions.create(
+        # 指定您创建的方舟推理接入点 ID，此处已帮您修改为您的推理接入点 ID
+        model="doubao-seed-1-6-vision-250815",
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                        {"type": "text", "text": f"{text}"},
+                ]+
+                [ {"type": "image_url", "image_url": {"url": encode_image(image)}} for image in images]
+                ,
+            }
+        ],
+        )
+        return (response.choices[0].message.content)
+    except Exception as e:
+        Debug(e)
+        return AnswerImage(images,text)
     #####################
     processor=VLM.processor
     model=VLM.model
@@ -223,8 +232,8 @@ def EditImage(image,description:str):
         model="doubao-seededit-3-0-i2i-250628",
         prompt=description,
         image=encode_image(image),
-        seed=123,
-        guidance_scale=5.5,
+        seed=random.randint(119,65536),
+        guidance_scale=8.0,
         size="adaptive",
         watermark=True
     )
@@ -386,7 +395,11 @@ def GetImageScore(source,target,description:str):
     return score,prompt
 #获取编辑后的局部打分
 def GetImageLocalScore(source,target,description:str):
-    return GetImageScore(source,target,LoalScore_Prompt.format(description))
+    res=GetImageScore(source,target,LoalScore_Prompt.format(description))
+    #如果是因为模型框住的区域不合适，那么直接给满分即可
+    if res==-1:
+        Debug("所选区域有问题,直接给定满分")
+        return 10
 #获取编辑后的全局打分
 def GetImageGlobalScore(source,target,description:str):
     return GetImageScore(source,target,GlobalScore_Prompt.format(description))
