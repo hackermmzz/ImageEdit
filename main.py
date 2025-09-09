@@ -67,56 +67,31 @@ def Init():
     data=LoadData(db_path)
     #拆解成数据包
     DivideData(data,"data")
-    #
-#运行逻辑
-def Run():
-    scene_json='''
-    {
-    "global": {
-        "scene_type": "natural, wooded environment",
-        "background": "blurred green foliage indicating a lush forest or jungle setting with diffused natural light",
-        "main_elements": "tree branches and a small bird as central subjects",
-        "lighting": "natural daylight with soft, diffused illumination"
-    },
-    "local": {
-        "objects": [
-            {
-                "type": "bird",
-                "details": "small bird with green body plumage, red patch on head, black beak, perched on a tree branch or wooden structure"
-            },
-            {
-                "type": "tree branches",
-                "details": "thick, textured branches; one large branch in foreground with blurred (bokeh) effect, another branch the bird is on with visible wood texture"
-            }
-        ],
-        "colors": {
-            "bird": "green body, red head patch, black beak",
-            "tree": "brown bark with textured surface",
-            "background": "various shades of green from foliage"
-        },
-        "other_details": "no human presence; focus on wildlife in natural habitat with shallow depth of field emphasizing the bird"
-        }
-    }
-    '''
     #加载所有模型
     LoadAllModel()
-    #读取用户输入
-    img_ptah="data/1/0.jpg"#input("请输入图像对的路径:")
-    prompt="remove the bird from the tree branch while keeping the background, branch, and lighting the same"#input("请输入图像编辑描述:")
+#运行一个单例
+def ProcessImageEdit(img_path:str,prompt:str,dir="./"):
+    #创建目录
+    if not os.path.exists(dir):
+        os.makedirs(dir)
     #加载图片
-    ori_image=Image.open(img_ptah).convert("RGB")
+    ori_image=Image.open(img_path).convert("RGB")
     ########################################第一层：专家池
     agent0=TopAgent()
+    #专家1 分析图像中的场景
+    Debug("正在获取场景描述...")
+    scene_json=agent0.GetDescription(ori_image)
+    Debug("场景描述:",scene_json)
     #专家2 任务细分
+    Debug("正在进行任务细分...")
     tasks=agent0.GetTask(prompt)
     Debug("任务细分:",tasks)
-    #专家1 分析图像中的场景
-   # scene_json=agent0.GetDescription(ori_image)
-    Debug("场景描述:",scene_json)
     #专家3 任务优化
+    Debug("正在进行任务优化...")
     refine_tasks=agent0.RefineTasks(scene_json,tasks)
     Debug("任务优化:",refine_tasks)
     #专家4 获取图像变化
+    Debug("正在获取图像信息改变...")
     changes=agent0.GetChange(scene_json,tasks)
     Debug("图像改变信息:",changes)
     ##########################################第二层：任务链
@@ -125,24 +100,29 @@ def Run():
     local_itr_cnt=0
     global_itr_cnt=0
     while i <len(refine_tasks):
-        Debug(f"第{i+1}次任务开始!")
+        Debug(f"第{i+1}次指令编辑开始!,指令为:{refine_tasks[i]}")
         ###########编辑图像
         task=refine_tasks[i]
-        output=EditImage(input_img,task)
+        Debug("正在进行图像编辑...")
+        output_img=EditImage(input_img,task)
+        #将output和input缩放到同一个尺寸
+        output_img=output_img.resize(input_img.size)
         Debug("图像编辑完成!")
-        DebugSaveImage(output)
+        DebugSaveImage(output_img,dir=dir)
         ###########裁剪局部区域
         change=changes[i]
         #获取区域
         def GetArea(target,image,box=None):
             if target=="none":
-                if box !=None:
+                if box!=None:
                     x1,y1,x2,y2=map(int,box)
-                    return image.crop((x1, y1, x2, y2)),box
+                    ret=image.crop((x1, y1, x2, y2))
+                    DebugSaveImage(ret,dir=dir)
+                    return ret,box
             #GroundingDINO框出大概区域
             try:
                 output,box=GroundingDINOForImage(image,target)
-                DebugSaveImage(output)
+                DebugSaveImage(output,dir=dir)
                 #SAM细分得到mask
     #            mask=SAMForImage(output)
                 #提取区域
@@ -154,27 +134,31 @@ def Run():
                 return None,None
         origin,box=GetArea(change[0],input_img)
         Debug("获取原图改变区域成功!")
-        edited,box=GetArea(change[1],output,box)
+        edited,box=GetArea(change[1],output_img,box)
         Debug("获取编辑图改变区域成功!")
         #获取局部打分
         try:
+            Debug("局部打分中......")
             score,neg_prompt=GetImageLocalScore(origin,edited,task)
             Debug("局部打分:",score)
             if score<LocalScoreTherold and local_itr_cnt<LocalItrTherold:
+                Debug(f"第{i}轮局部打分低于阈值,反向提示词为{neg_prompt}")
+                Debug("优化指令中...")
                 refine_tasks[i]=OptmEditInstruction(neg_prompt,task)
                 local_itr_cnt+=1
-                Debug(f"第{i}轮局部打分低于阈值,反向提示词为{neg_prompt}")
                 continue
         except Exception as e:
             Debug(e)
         #获取全局打分
         try:
-            score,neg_prompt=GetImageGlobalScore(origin,edited,task)
-            Debug("全部打分:",score)
+            Debug("全局打分中......")
+            score,neg_prompt=GetImageGlobalScore(input_img,output_img,task)
+            Debug("全局打分:",score)
             if score<GlobalScoreTherold and global_itr_cnt<GlobalItrTherold:
+                Debug(f"第{i}轮全局打分低于阈值,反向提示词为{neg_prompt}")
+                Debug("优化指令中...")
                 refine_tasks[i]=OptmEditInstruction(neg_prompt,task)
                 global_itr_cnt+=1
-                Debug(f"第{i}轮全局打分低于阈值,反向提示词为{neg_prompt}")
                 continue
         except Exception as e:
             Debug(e)
@@ -182,15 +166,48 @@ def Run():
         i+=1
         local_itr_cnt=0
         global_itr_cnt=0
-        input_img=output
+        input_img=output_img
     ###################################第三层：打分
+    Debug("图片评分中....")
     score=GetCriticScore(ori_image,input_img,refine_tasks)
     Debug(f"最终评测机打分{score}")
     #保存图片
     fileName=RandomImageFileName()
-    #input_img.save(fileName)
-    DebugSaveImage(input_img,fileName)
+    DebugSaveImage(input_img,fileName,dir=dir)
     Debug(f"图像{fileName}保存成功!")
+#运行逻辑
+def Run():
+    if not TEST_MODE:
+        try:
+            img_path=input("请输入图片路径:")
+            prompt=input("请输入编辑指令:")
+            ProcessImageEdit(img_path=img_path,prompt=prompt)
+        except Exception as e:
+            print(e)
+            return
+    else:
+        #清空文件夹
+        
+        #获取所有待测试的数据
+        idx=2
+        while True:
+            try:
+                target_img=f"data/{idx}/0.jpg"
+                target_prompt_file=f"data/{idx}/ins.txt"
+                if not os.path.exists(target_img) or not os.path.exists(target_prompt_file):
+                    break
+                #读取指令
+                with open(target_prompt_file,"r") as f:
+                    target_prompt=f.read()
+                Debug("-"*100)
+                Debug(f"第{idx}轮图像编辑开始!")
+                ProcessImageEdit(target_img,target_prompt,dir=f"debug/{idx}")
+                print(f"第{idx}轮图像处理成功!")
+            except Exception as e:
+                print(e)
+                print(f"第{idx}轮图像处理失败!")
+            finally:
+                idx+=1
         
         
 if __name__=="__main__":
