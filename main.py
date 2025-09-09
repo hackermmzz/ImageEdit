@@ -137,31 +137,33 @@ def ProcessImageEdit(img_path:str,prompt:str,dir="./"):
         edited,box=GetArea(change[1],output_img,box)
         Debug("获取编辑图改变区域成功!")
         #获取局部打分
-        try:
-            Debug("局部打分中......")
-            score,neg_prompt=GetImageLocalScore(origin,edited,task)
-            Debug("局部打分:",score)
-            if score<LocalScoreTherold and local_itr_cnt<LocalItrTherold:
-                Debug(f"第{i}轮局部打分低于阈值,反向提示词为{neg_prompt}")
-                Debug("优化指令中...")
-                refine_tasks[i]=OptmEditInstruction(neg_prompt,task)
-                local_itr_cnt+=1
-                continue
-        except Exception as e:
-            Debug(e)
+        if local_itr_cnt<LocalItrTherold:
+            try:
+                Debug("局部打分中......")
+                score,neg_prompt=GetImageLocalScore(origin,edited,task)
+                Debug("局部打分:",score)
+                if  score<LocalScoreTherold:
+                    Debug(f"第{i}轮局部打分低于阈值,反向提示词为{neg_prompt}")
+                    Debug("优化指令中...")
+                    refine_tasks[i]=OptmEditInstruction(neg_prompt,task)
+                    local_itr_cnt+=1
+                    continue
+            except Exception as e:
+                Debug(e)
         #获取全局打分
-        try:
-            Debug("全局打分中......")
-            score,neg_prompt=GetImageGlobalScore(input_img,output_img,task)
-            Debug("全局打分:",score)
-            if score<GlobalScoreTherold and global_itr_cnt<GlobalItrTherold:
-                Debug(f"第{i}轮全局打分低于阈值,反向提示词为{neg_prompt}")
-                Debug("优化指令中...")
-                refine_tasks[i]=OptmEditInstruction(neg_prompt,task)
-                global_itr_cnt+=1
-                continue
-        except Exception as e:
-            Debug(e)
+        if global_itr_cnt<GlobalItrTherold:
+            try:
+                Debug("全局打分中......")
+                score,neg_prompt=GetImageGlobalScore(input_img,output_img,task)
+                Debug("全局打分:",score)
+                if score<GlobalScoreTherold:
+                    Debug(f"第{i}轮全局打分低于阈值,反向提示词为{neg_prompt}")
+                    Debug("优化指令中...")
+                    refine_tasks[i]=OptmEditInstruction(neg_prompt,task)
+                    global_itr_cnt+=1
+                    continue
+            except Exception as e:
+                Debug(e)
         #下一个任务
         i+=1
         local_itr_cnt=0
@@ -189,7 +191,7 @@ def Run():
         #清空文件夹
         
         #获取所有待测试的数据
-        idx=2
+        idx=82
         while True:
             try:
                 target_img=f"data/{idx}/0.jpg"
