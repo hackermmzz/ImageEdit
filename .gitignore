@@ -1,0 +1,168 @@
+# ###########################
+# 操作系统相关文件
+# ###########################
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Icon?
+nohup.out
+
+# Linux
+*~
+# 临时文件
+tmp/
+temp/
+
+# ###########################
+# 开发工具/IDE相关
+# ###########################
+# VS Code
+.vscode/
+*.code-workspace
+.history/
+
+# IntelliJ (IDEA, WebStorm等)
+.idea/
+*.iws
+*.iml
+*.ipr
+out/
+build/
+
+# Eclipse
+.classpath
+.project
+.settings/
+bin/
+
+# Vim
+*.swp
+*.swo
+.*.swp
+.*.swo
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+.DS_Store
+
+# ###########################
+# 编程语言相关
+# ###########################
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+venv/
+env/
+ENV/
+*.pyc
+*.pyd
+*.pyo
+
+# JavaScript/Node.js
+node_modules/
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+.pnpm-debug.log
+.next/
+out/
+dist/
+build/
+.vercel/
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Java
+*.class
+*.jar
+*.war
+*.ear
+target/
+build/
+bin/
+.gradle/
+gradle/
+!gradle/wrapper/gradle-wrapper.jar
+
+# C/C++
+*.obj
+*.o
+*.a
+*.lib
+*.so
+*.dylib
+*.dll
+*.exe
+*.out
+*.app
+build/
+cmake-build-*/
+
+# Go
+vendor/
+*.exe
+*.exe~
+__debug_bin
+*.test
+*.prof
+
+# PHP
+vendor/
+composer.lock
+composer.phar
+*.log
+.php_cs.cache
+.phpunit.result.cache
+coverage/
+
+# Ruby
+*.gem
+Gemfile.lock
+vendor/
+
+# ###########################
+# 通用文件/目录
+# ###########################
+# 日志文件
+logs/
+*.log
+*.logs
+
+# 缓存文件
+.cache/
+*.cache
+datasets/
+debug/
+tmp/
+data/
