@@ -15,6 +15,7 @@ from openai import OpenAI
 import base64
 from transformers import CLIPModel, CLIPProcessor
 from scipy.spatial.distance import cosine
+from volcenginesdkarkruntime import Ark
 ######################################指定设备
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 #######################################
@@ -88,7 +89,7 @@ def LoadAllModel():
         CLIP=Expert(processor=processor,model=model)
     #多线程加载
     tasks=[
-            LoadVLM,
+        #    LoadVLM,
         #    LoadLLM,
             LoadGroundingDINO,
             LoadSAM,
@@ -110,14 +111,22 @@ def ExtractAnswer(data:str):
         if beg1!=-1 and end1!=-1:
             think=data[beg1+len("<think>"):end1]
         return think,answer
+#######################################编码图片
+def encode_image(pil_image):
+    buffer = BytesIO()
+    pil_image.save(buffer, format="JPEG")
+    encoded_string = base64.b64encode(buffer.getvalue()).decode('utf-8')
+    return f"data:{'image/jpeg'};base64,{encoded_string}"
 #######################################
-client = OpenAI(
-        # 此为默认路径，您可根据业务所在地域进行配置
-            base_url="https://ark.cn-beijing.volces.com/api/v3",
-            # 从环境变量中获取您的 API Key
-            api_key="723cff33-3b13-420d-ab6d-267800a27475",
-            timeout=30
-        )
+client = Ark(
+    # 此为默认路径，您可根据业务所在地域进行配置
+    base_url="https://ark.cn-beijing.volces.com/api/v3",
+    # 从环境变量中获取您的 API Key。此为默认方式，您可根据需要进行修改
+    api_key="723cff33-3b13-420d-ab6d-267800a27475",
+    timeout=1800,
+    # 设置重试次数
+    max_retries=2,
+)
 def AnswerText(question:str):
     ##########################调用豆包大模型
         # Non-streaming:
@@ -163,7 +172,25 @@ def AnswerText(question:str):
         )
         return response
 ##########################
+
 def AnswerImage(images:list,text:str):
+    #####################
+    response = client.chat.completions.create(
+    # 指定您创建的方舟推理接入点 ID，此处已帮您修改为您的推理接入点 ID
+    model="doubao-seed-1-6-vision-250815",
+    messages=[
+        {
+            "role": "user",
+            "content": [
+                    {"type": "text", "text": f"{text}"},
+            ]+
+            [ {"type": "image_url", "image_url": {"url": encode_image(image)}} for image in images]
+            ,
+        }
+    ],
+    )
+    return (response.choices[0].message.content)
+    #####################
     processor=VLM.processor
     model=VLM.model
         #
@@ -192,37 +219,17 @@ def AnswerImage(images:list,text:str):
     return res
 ###############################给定指令进行编辑
 def EditImage(image,description:str):
-    def encode_image(pil_image):
-        buffer = BytesIO()
-        pil_image.save(buffer, format="JPEG")
-        encoded_string = base64.b64encode(buffer.getvalue()).decode('utf-8')
-        return f"data:{'image/jpeg'};base64,{encoded_string}"
-    messages = [
-        {
-            "role": "user",
-            "content": [
-                 {"image": encode_image(image)},
-                {"text": "{}".format(description)}
-            ]
-        }
-    ]
-    api_key = "sk-17cd5f2ebd6b4981b9eb6991a0ddfe3d"
-    response = MultiModalConversation.call(
-        api_key=api_key,
-        model="qwen-image-edit",
-        messages=messages,
-        result_format='message',
-        stream=False,
-        watermark=True,
-        negative_prompt=""
+    imagesResponse = client.images.generate(
+        model="doubao-seededit-3-0-i2i-250628",
+        prompt=description,
+        image=encode_image(image),
+        seed=123,
+        guidance_scale=5.5,
+        size="adaptive",
+        watermark=True
     )
-    if response.status_code != 200:
-        Debug("图像编辑出错!")
-        return None
-    #获取url链接
-    resp_data=json.loads(json.dumps(response, ensure_ascii=False))
-    image_url = resp_data["output"]["choices"][0]["message"]["content"][0]["image"]
     #下载图片
+    image_url=imagesResponse.data[0].url
     headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
         }
@@ -374,6 +381,7 @@ def GetImageScore(source,target,description:str):
         if "prompt" in data:
             prompt=data["prompt"]
     except Exception as e:
+        Debug(e)
         pass
     return score,prompt
 #获取编辑后的局部打分

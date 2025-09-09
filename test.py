@@ -290,7 +290,7 @@ if __name__ == "__main__":
     # LoadLLM()  # 若不需要LLM可注释
     LoadGroundingDINO()
 
-    image_path = "data/1/0.jpg"
+    image_path = "data/2/0.jpg"
     image = Image.open(image_path).convert("RGB")
 
     while True:

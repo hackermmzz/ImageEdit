@@ -1,15 +1,16 @@
 import time
 import sys
 ###############全局配置
+TEST_MODE=True	#测试模式将验证测试机
 DEBUG=True
 DEBUG_OUTPUT=True
-DEBUG_DIR="debug"
+DEBUG_DIR="debug/"
 DEBUG_FILE=sys.stdout if (not DEBUG or not DEBUG_OUTPUT) else open(f"{DEBUG_DIR}/debug.txt","w")
-LocalScoreTherold=7
-LocalItrTherold=4
-GlobalScoreTherold=7
-GlobalItrTherold=4
-GroundingDINOClipScoreThreold=0.23
+LocalScoreTherold=5
+LocalItrTherold=2
+GlobalScoreTherold=5
+GlobalItrTherold=2
+GroundingDINOClipScoreThreold=0.22
 ###############对图片的场景就行概述
 Expert1_Prompt='''
 Can you describe this image in detail?
@@ -96,23 +97,46 @@ Expert4_Prompt='''
 Suppose you are now an expert in editing task recognition. 
 I input the scene description json and some editing instructions, you need to output it in my given format and follow the following rules.
 (1) You are not allowed to output anything that contradicts my given formatting
-
 (2)The output must fit the instructions.
-
 (3)It must follow the format of original object:modified object.
-e.g.: the instruction is to change the teapot to black.
+For example:
+Scene:
+	{{
+		"global": {{
+			"scene_type": "outdoor landscape",
+			"background": "a vast grassy meadow with rolling green hills and distant mountains under a bright blue sky with scattered white clouds, creating a serene and open natural environment",
+			"atmosphere": "peaceful, relaxed, and leisurely, suggesting a camping or hiking activity"
+		}},
+		"local": {{
+			"people": {{
+				"appearance": "a person wearing a green hooded jacket, brown pants, and tan hiking boots, sitting on a folding chair",
+				"action": "making a peace sign with the right hand and pointing with the left hand, likely interacting with the camera or someone off-frame"
+			}},
+			"objects": {{
+				"furniture": "a small wooden folding table and a light-colored folding chair",
+				"items_on_table": "an open map and a black mug (possibly containing a beverage)"
+			}},
+			"colors": {{
+				"dominant_colors": "green (jacket, grass, hills), brown (pants, boots, table), blue (sky), and tan (boots, chair)",
+				"color_mood": "earthy tones with vibrant natural hues, creating a harmonious and calming visual"
+			}},
+			"details": {{
+				"textiles": "the jacket has a soft texture, the pants are casual, the chair and table have a simple, functional design",
+				"natural_elements": "grassy field with visible texture, mountains with distinct shapes, clear sky with soft clouds",
+				"lighting": "bright sunlight casting soft shadows, indicating a sunny day"
+			}}
+		}}
+	}}
+Tasks:
+	(1)make Person's right hand in a yay pose
+	(2)make Environment changes to green grass
 Your answer:
-Teapot:Teapot
-I don't need you to give specific properties, just the object.
-For those who can't give the exact object
-For example: change the background to dusk
-Your answer should be:
-Background:background That's it
-For editing commands that delete or add objects.
-For example: add a teapot
-Your answer:
-None: teapot
-
+	[
+     "person with a green hooded jacket:person with a yay pose",
+     "a vast grassy meadow with rolling green hills:a vast grass land"
+    ]
+    You should ensure what you describe will work good for GrounDingDINO and CLIP for next step work.
+    
 (4)More specifically, you need to follow this format
 	[
      "Mug:Mug",
@@ -123,7 +147,7 @@ None: teapot
 	 "None:rainbow"
   	]
 If the edit operation is add,you should follow the format "None:object",for delete is "object:None",for modifications is "object1:object2"
-Remember you don't need give me any other description of object,and ouput the same count of changes description as the instructions I give you!
+Remember you need to ouput the same count of changes description as the instructions I give you!
 You should ensure the size of list you output is the same as the count of instructions!
  
 (5) For each instruction, your output must specify that this corresponds to the first instruction given, as follows.
@@ -133,6 +157,8 @@ Suppose I give the instruction: (1) ... (2) ... (3) ... The answer you give must
 For example, 
 the change is to a person's right hand, but you should output the person, not the person's right hand, because the right hand is part of the person, 
 such as adding new clouds in the sky, you should output the sky not the clouds, because the clouds are part of the sky
+
+(7)When you generate an answer for the change brought about by the ith instruction, you have to make sure that the change brought about by the previous i-1 instructions is also taken into account, which means that if a previous instruction changed the colour of a person's clothes to red, even if he started out with the colour green, then you would only be able to say that his clothes are red because the change brought about by these instructions is persistent
 
 Now the scene description I gave is:{}
 The edit command is:{}
@@ -186,7 +212,7 @@ Secondly, you also need to give me the reason why you scored this as a reverse c
 	(2) The reverse cue word cannot exceed 100 words.
 Finally, you need to give me an answer in the following format:
 	{{
-		"Score": your score,
+		"score": your score,
 		"prompt": your reverse prompt (or leave "None" if you think it's good enough)
 	}}
 For example, if my instructions call for a pair of leather shoes, but the background in the edited image has also been changed, you need to answer either "the background has been changed" or "something else has been changed".
@@ -225,12 +251,12 @@ def Debug(*msg):
 	print()
     #
 	sys.stdout=original
-def DebugSaveImage(image,fileName=None):
+def DebugSaveImage(image,fileName=None,dir=DEBUG_DIR):
     if not DEBUG:
         return
     if fileName==None:
         fileName=RandomImageFileName()
-    image.save(f"{DEBUG_DIR}/{fileName}")
+    image.save(f"{dir}/{fileName}")
 def RandomImageFileName():
     timestamp = time.time()
     total_milliseconds = int(timestamp * 1000)
