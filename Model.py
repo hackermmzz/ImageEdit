@@ -92,9 +92,9 @@ def LoadAllModel():
     tasks=[
         #    LoadVLM,
         #    LoadLLM,
-            LoadGroundingDINO,
-            LoadSAM,
-            LoadClip,
+        #    LoadGroundingDINO,
+        #    LoadSAM,
+        #    LoadClip,
         ]
     for task in tasks:
         task()
