@@ -181,6 +181,9 @@ def AnswerText(question:str):
 def AnswerImage(images:list,text:str):
     #####################
     try:
+        for x in images:
+            if x is None:
+                return "Nothing"
         response = client.chat.completions.create(
         # 指定您创建的方舟推理接入点 ID，此处已帮您修改为您的推理接入点 ID
         model="doubao-seed-1-6-vision-250815",
