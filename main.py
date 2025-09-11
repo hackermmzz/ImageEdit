@@ -6,6 +6,7 @@ import json
 from transformers.image_utils import load_image
 from TopLayer import TopAgent
 from Model import *
+from GroundedSam2 import*
 ######################################下载数据集
 def DownloadDataSet(save_path,count=4096):
     if os.path.exists(save_path):
@@ -132,15 +133,18 @@ def ProcessImageEdit(img_path:str,prompt:str,dir="./"):
             except Exception as e:
                 Debug(e)
                 return None,None
-        origin,box=GetArea(change[0],input_img)
+        origin_mask,origin_box=GroundingDINO_SAM2(input_img,change[0])
         Debug("获取原图改变区域成功!")
-        edited,box=GetArea(change[1],output_img,box)
+        edit_mask,edit_box=GroundingDINO_SAM2(output_img,change[1])
         Debug("获取编辑图改变区域成功!")
         #获取局部打分
         if local_itr_cnt<LocalItrTherold:
             try:
                 Debug("局部打分中......")
-                score,neg_prompt=GetImageLocalScore(origin,edited,task)
+                score0,neg_prompt0=GetImageLocalScore(origin_mask,edit_mask,task)
+                score1,neg_prompt1=GetImageLocalScore(origin_box,edit_box,task)
+                score=max(score0,score1)
+                neg_prompt=neg_prompt0 if score0>score1 else neg_prompt1
                 Debug("局部打分:",score)
                 if  score<LocalScoreTherold:
                     Debug(f"第{i}轮局部打分低于阈值,反向提示词为{neg_prompt}")
@@ -188,10 +192,8 @@ def Run():
             print(e)
             return
     else:
-        #清空文件夹
-        
         #获取所有待测试的数据
-        idx=82
+        idx=11
         while True:
             try:
                 target_img=f"data/{idx}/0.jpg"
