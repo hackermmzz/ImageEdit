@@ -64,7 +64,7 @@ def AnswerImage(images:list,text:str):
         )
         return (response.choices[0].message.content)
     except Exception as e:
-        Debug(e)
+        Debug("Answer_Image:",e)
         return AnswerImage(images,text)
     '''
     processor=VLM.processor

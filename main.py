@@ -3,8 +3,6 @@ import os
 from datasets import load_from_disk,load_dataset,Dataset
 from PIL import Image
 import json
-from transformers.image_utils import load_image
-from TopLayer import TopAgent
 from GroundedSam2 import*
 from ImageEdit import*
 from LLM import *
@@ -87,11 +85,7 @@ def ProcessImageEdit(img_path:str,prompt:str,dir="./"):
     Debug("正在进行任务细分...")
     tasks=GetTask(prompt)
     Debug("任务细分:",tasks)
-    #专家3 任务优化
-    Debug("正在进行任务优化...")
-    refine_tasks=RefineTasks(scene_json,tasks)
-    Debug("任务优化:",refine_tasks)
-    #专家4 获取图像变化
+    #专家3 获取图像变化
     Debug("正在获取图像信息改变...")
     changes=GetChange(scene_json,tasks)
     Debug("图像改变信息:",changes)
@@ -100,23 +94,31 @@ def ProcessImageEdit(img_path:str,prompt:str,dir="./"):
     i=0
     local_itr_cnt=0
     global_itr_cnt=0
-    while i <len(refine_tasks):
-        Debug(f"第{i+1}次指令编辑开始!,指令为:{refine_tasks[i]}")
+    neg_prompts=[]
+    while i <len(tasks):
+        #任务优化
+        Debug("正在进行任务优化:")
+        task=polish_edit_prompt(input_img,tasks[i])
+        #
+        Debug(f"第{i+1}次指令编辑开始!,指令为:{task}")
         ###########编辑图像
-        task=refine_tasks[i]
         Debug("正在进行图像编辑...")
-        output_img=EditImage(input_img,task)
+        output_img=EditImage(input_img,task,neg_prompts)
         #将output和input缩放到同一个尺寸
         output_img=output_img.resize(input_img.size)
         Debug("图像编辑完成!")
-        DebugSaveImage(output_img,dir=dir)
+        DebugSaveImage(output_img,f"edited_image_{i+1}_"+RandomImageFileName(),dir=dir)
         ###########裁剪局部区域
         change=changes[i]
         #获取区域
         origin_mask,origin_box=GroundingDINO_SAM2(input_img,change[0])
         Debug("获取原图改变区域成功!")
+        DebugSaveImage(origin_mask,f"origin_mask_{i+1}_"+RandomImageFileName(),dir)
+        DebugSaveImage(origin_mask,f"origin_box_{i+1}_"+RandomImageFileName(),dir)
         edit_mask,edit_box=GroundingDINO_SAM2(output_img,change[1])
         Debug("获取编辑图改变区域成功!")
+        DebugSaveImage(edit_mask,f"edit_mask_{i+1}_"+RandomImageFileName(),dir)
+        DebugSaveImage(edit_box,f"edit_box_{i+1}_"+RandomImageFileName(),dir)
         #获取局部打分
         if local_itr_cnt<LocalItrTherold:
             try:
@@ -129,7 +131,7 @@ def ProcessImageEdit(img_path:str,prompt:str,dir="./"):
                 if  score<LocalScoreTherold:
                     Debug(f"第{i}轮局部打分低于阈值,反向提示词为{neg_prompt}")
                     Debug("优化指令中...")
-                    refine_tasks[i]=OptmEditInstruction(neg_prompt,task)
+                    neg_prompts.append(neg_prompt)
                     local_itr_cnt+=1
                     continue
             except Exception as e:
@@ -143,7 +145,7 @@ def ProcessImageEdit(img_path:str,prompt:str,dir="./"):
                 if score<GlobalScoreTherold:
                     Debug(f"第{i}轮全局打分低于阈值,反向提示词为{neg_prompt}")
                     Debug("优化指令中...")
-                    refine_tasks[i]=OptmEditInstruction(neg_prompt,task)
+                    neg_prompts.append(neg_prompt)
                     global_itr_cnt+=1
                     continue
             except Exception as e:
@@ -153,9 +155,10 @@ def ProcessImageEdit(img_path:str,prompt:str,dir="./"):
         local_itr_cnt=0
         global_itr_cnt=0
         input_img=output_img
+        neg_prompts=[]
     ###################################第三层：打分
     Debug("图片评分中....")
-    score=GetCriticScore(ori_image,input_img,refine_tasks)
+    score=GetCriticScore(ori_image,input_img,task)
     Debug(f"最终评测机打分{score}")
     #保存图片
     fileName=RandomImageFileName()
@@ -167,7 +170,7 @@ def Run():
         try:
             img_path=input("请输入图片路径:")
             prompt=input("请输入编辑指令:")
-            ProcessImageEdit(img_path=img_path,prompt=prompt)
+            ProcessImageEdit(img_path=img_path,prompt=prompt,dir="debug/")
         except Exception as e:
             print(e)
             return

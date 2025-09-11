@@ -6,7 +6,7 @@ import os
 ###############全局配置
 os.system("rm -rf debug/*")
 DEVICE = "cuda" if cuda.is_available() else "cpu"
-TEST_MODE=True	#测试模式将验证测试机
+TEST_MODE=False	#测试模式将验证测试机
 DEBUG=True
 DEBUG_OUTPUT=True
 DEBUG_DIR="debug/"
@@ -45,61 +45,8 @@ Please remember:
 Now I will give my query:
 	My task is:{}
 '''
-##################对任务进行细化
-Expert3_Prompt='''
-Suppose you are an expert in image editing task refinement, now I give you the scene description of the image in json format and a bunch of image editing tasks,
-there are some rules you must follow:
-(1) you need to refine each task to make it more relevant to the environment 
-(2) you can add some additional editing commands when necessary, but ask for a command to ensure that it is suitable for a single round of editing, 
-(3) just answer according to the format that I have given you.
-(4) Remember just answer me in the given format without any other words appearing.
-(5) Don't output any sentences that are not useful for the editing task; make sure that the sentences only work for the editing task!
-(6)Ensure each of answer's length is less than 3 times of original!
-For example:
-Scene:
-	{{
-		"global": {{
-			"scene_type": "outdoor landscape",
-			"background": "a vast grassy meadow with rolling green hills and distant mountains under a bright blue sky with scattered white clouds, creating a serene and open natural environment",
-			"atmosphere": "peaceful, relaxed, and leisurely, suggesting a camping or hiking activity"
-		}},
-		"local": {{
-			"people": {{
-				"appearance": "a person wearing a green hooded jacket, brown pants, and tan hiking boots, sitting on a folding chair",
-				"action": "making a peace sign with the right hand and pointing with the left hand, likely interacting with the camera or someone off-frame"
-			}},
-			"objects": {{
-				"furniture": "a small wooden folding table and a light-colored folding chair",
-				"items_on_table": "an open map and a black mug (possibly containing a beverage)"
-			}},
-			"colors": {{
-				"dominant_colors": "green (jacket, grass, hills), brown (pants, boots, table), blue (sky), and tan (boots, chair)",
-				"color_mood": "earthy tones with vibrant natural hues, creating a harmonious and calming visual"
-			}},
-			"details": {{
-				"textiles": "the jacket has a soft texture, the pants are casual, the chair and table have a simple, functional design",
-				"natural_elements": "grassy field with visible texture, mountains with distinct shapes, clear sky with soft clouds",
-				"lighting": "bright sunlight casting soft shadows, indicating a sunny day"
-			}}
-		}}
-	}}
-Tasks:
-	(1) Person's right hand in a yay pose
-	(2) Environment changes to green grass
- 
-Your answers:
-	[
-     "Adjust the person's right hand to a yay pose: Straighten its index and middle fingers into an upward V, bend the thumb, ring and little fingers to the palm, face the palm slightly forward, and keep the arm relaxed.",
- 	 "Change the environment to green grass: Make the meadow uniformly lush bright green with fine texture, add a few small wildflowers, and keep the background hills, mountains and sky to match the serene atmosphere."
-   	]
-Remember that you must output the format like [ans0,ans1,ans2...] Even if there is only one task!
-Now I give the query:
-	Scene description:{}
-
-	Tasks:{}
-'''
 #############################获取改变
-Expert4_Prompt='''
+Expert3_Prompt='''
 Suppose you are now an expert in editing task recognition. 
 I input the scene description json and some editing instructions, you need to output it in my given format and follow the following rules.
 (1) You are not allowed to output anything that contradicts my given formatting
@@ -300,9 +247,9 @@ Please strictly follow the rewriting rules below:
 
 # Output Format Example
 ```json
-{
+{{
    "Rewritten": "..."
-}
+}}
 
 User Input: {}
 

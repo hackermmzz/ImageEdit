@@ -28,11 +28,7 @@ def GetImageScore(source,target,description:str):
     return score,prompt
 #获取编辑后的局部打分
 def GetImageLocalScore(source,target,description:str):
-    res=GetImageScore(source,target,LoalScore_Prompt.format(description))
-    #如果是因为模型框住的区域不合适，那么直接给满分即可
-    if res==-1:
-        Debug("所选区域有问题,直接给定满分")
-        return 10
+    return GetImageScore(source,target,LoalScore_Prompt.format(description))
 #获取编辑后的全局打分
 def GetImageGlobalScore(source,target,description:str):
     return GetImageScore(source,target,GlobalScore_Prompt.format(description))
@@ -54,27 +50,12 @@ def OptmEditInstruction(negPrompt:str,instruction:str):
         return data["new_instruction"]
     except Exception as e:
         return ""
-def  RefineTasks(scene :str,tasks:list):
-        #
-        text=""
-        for i in range(len(tasks)):
-            text+="({})".format(i+1)+tasks[i]+"\n"
-        answer=AnswerText(Expert3_Prompt.format(scene,text))
-        #
-        try:
-            lst=json.loads(answer)
-            if type(lst)!=list:
-                raise Exception("type is not list")
-            refined_tasks=lst
-            return refined_tasks
-        except Exception as e:
-            return RefineTasks(scene,tasks)#无限循环直到正确
 ##获取对象改变
 def GetChange(scene:str,tasks:list):
         text=""
         for i in range(len(tasks)):
             text+="({})".format(i+1)+tasks[i]+"\n"
-        answer=AnswerText(Expert4_Prompt.format(scene,text))
+        answer=AnswerText(Expert3_Prompt.format(scene,text))
         try:
             ret=[]
             changes=json.loads(answer)

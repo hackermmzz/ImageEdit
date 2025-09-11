@@ -99,7 +99,7 @@ def GetChange(scene:str,tasks:list):
         return completion.choices[0].message.content
         
     text="".join([f"({i+1}){task}\n" for i,task in enumerate(tasks)])
-    answer=AnswerText(Expert4_Prompt.format(scene,text))
+    answer=AnswerText(Expert3_Prompt.format(scene,text))
     try:
         ret=[change.split(":") for change in json.loads(answer)]
         return [[s[0].lower(),s[1].lower()] for s in ret]
