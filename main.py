@@ -8,6 +8,7 @@ from ImageEdit import*
 from LLM import *
 from VLM import *
 from Model import *
+from NegativeFeedback import *
 ######################################下载数据集
 def DownloadDataSet(save_path,count=4096):
     if os.path.exists(save_path):
@@ -108,48 +109,16 @@ def ProcessImageEdit(img_path:str,prompt:str,dir="./"):
         output_img=output_img.resize(input_img.size)
         Debug("图像编辑完成!")
         DebugSaveImage(output_img,f"edited_image_{i+1}_"+RandomImageFileName(),dir=dir)
-        ###########裁剪局部区域
-        change=changes[i]
-        #获取区域
-        origin_mask,origin_box=GroundingDINO_SAM2(input_img,change[0])
-        Debug("获取原图改变区域成功!")
-        DebugSaveImage(origin_mask,f"origin_mask_{i+1}_"+RandomImageFileName(),dir)
-        DebugSaveImage(origin_mask,f"origin_box_{i+1}_"+RandomImageFileName(),dir)
-        edit_mask,edit_box=GroundingDINO_SAM2(output_img,change[1])
-        Debug("获取编辑图改变区域成功!")
-        DebugSaveImage(edit_mask,f"edit_mask_{i+1}_"+RandomImageFileName(),dir)
-        DebugSaveImage(edit_box,f"edit_box_{i+1}_"+RandomImageFileName(),dir)
-        #获取局部打分
-        if local_itr_cnt<LocalItrTherold:
-            try:
-                Debug("局部打分中......")
-                score0,neg_prompt0=GetImageLocalScore(origin_mask,edit_mask,task)
-                score1,neg_prompt1=GetImageLocalScore(origin_box,edit_box,task)
-                score=max(score0,score1)
-                neg_prompt=neg_prompt0 if score0>score1 else neg_prompt1
-                Debug("局部打分:",score)
-                if  score<LocalScoreTherold:
-                    Debug(f"第{i}轮局部打分低于阈值,反向提示词为{neg_prompt}")
-                    Debug("优化指令中...")
-                    neg_prompts.append(neg_prompt)
-                    local_itr_cnt+=1
-                    continue
-            except Exception as e:
-                Debug(e)
-        #获取全局打分
-        if global_itr_cnt<GlobalItrTherold:
-            try:
-                Debug("全局打分中......")
-                score,neg_prompt=GetImageGlobalScore(input_img,output_img,task)
-                Debug("全局打分:",score)
-                if score<GlobalScoreTherold:
-                    Debug(f"第{i}轮全局打分低于阈值,反向提示词为{neg_prompt}")
-                    Debug("优化指令中...")
-                    neg_prompts.append(neg_prompt)
-                    global_itr_cnt+=1
-                    continue
-            except Exception as e:
-                Debug(e)
+        ###########负反馈
+        local_score,global_score,neg_prompt=NegativeFeedback(task,changes[i],input_img,output_img,i+1,local_itr_cnt<LocalItrThershold,global_itr_cnt<GlobalItrThershold)
+        if local_score<LocalScoreThershold:
+            neg_prompts.append(neg_prompt)
+            local_itr_cnt+=1
+            continue
+        elif global_score<GlobalScoreThershold:
+            neg_prompts.append(neg_prompt)
+            global_itr_cnt+=1
+            continue
         #下一个任务
         i+=1
         local_itr_cnt=0
