@@ -94,35 +94,3 @@ def AnswerImage(images:list,text:str):
     _,res=ExtractAnswer(res)
     return res
     '''
-#获取编辑后的打分
-def GetImageScore(source,target,description:str):
-    res=AnswerImage([source,target],description)
-    score=-1
-    prompt=""
-    try:
-        data = json.loads(res)
-        if "score" in data:
-            score=int(data["score"])
-        if "prompt" in data:
-            prompt=data["prompt"]
-    except Exception as e:
-        Debug(e)
-        pass
-    return score,prompt
-#获取编辑后的局部打分
-def GetImageLocalScore(source,target,description:str):
-    res=GetImageScore(source,target,LoalScore_Prompt.format(description))
-    #如果是因为模型框住的区域不合适，那么直接给满分即可
-    if res==-1:
-        Debug("所选区域有问题,直接给定满分")
-        return 10
-#获取编辑后的全局打分
-def GetImageGlobalScore(source,target,description:str):
-    return GetImageScore(source,target,GlobalScore_Prompt.format(description))
-#艺术家打分
-def GetCriticScore(source,target,instructions:list):
-    instruction=""
-    for idx in range(len(instructions)):
-        ins=instructions[idx]
-        instruction+="({})".format(idx+1)+ins+"\n"
-    return GetImageScore(source,target,Critic_Prompt.format(instruction))

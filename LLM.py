@@ -70,11 +70,3 @@ def AnswerText(question:str):
             skip_special_tokens=True  # 忽略特殊 token（如 <bos> <eos>）
         )
         return response
-#指令优化
-def OptmEditInstruction(negPrompt:str,instruction:str):
-    res=AnswerText(InsOptim_Prompt.format(negPrompt,instruction))
-    try:
-        data=json.loads(res)
-        return data["new_instruction"]
-    except Exception as e:
-        return ""
