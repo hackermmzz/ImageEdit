@@ -158,7 +158,8 @@ vendor/
 logs/
 *.log
 *.logs
-
+*.png
+*.jpg
 # 缓存文件
 .cache/
 *.cache
