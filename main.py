@@ -5,8 +5,10 @@ from PIL import Image
 import json
 from transformers.image_utils import load_image
 from TopLayer import TopAgent
-from Model import *
 from GroundedSam2 import*
+from ImageEdit import*
+from LLM import *
+from VLM import *
 ######################################下载数据集
 def DownloadDataSet(save_path,count=4096):
     if os.path.exists(save_path):
@@ -113,26 +115,6 @@ def ProcessImageEdit(img_path:str,prompt:str,dir="./"):
         ###########裁剪局部区域
         change=changes[i]
         #获取区域
-        def GetArea(target,image,box=None):
-            if target=="none":
-                if box!=None:
-                    x1,y1,x2,y2=map(int,box)
-                    ret=image.crop((x1, y1, x2, y2))
-                    DebugSaveImage(ret,dir=dir)
-                    return ret,box
-            #GroundingDINO框出大概区域
-            try:
-                output,box=GroundingDINOForImage(image,target)
-                DebugSaveImage(output,dir=dir)
-                #SAM细分得到mask
-    #            mask=SAMForImage(output)
-                #提取区域
-    #            output=ExtractByMask(output,mask)
-    #            Debug(output)
-                return output,box
-            except Exception as e:
-                Debug(e)
-                return None,None
         origin_mask,origin_box=GroundingDINO_SAM2(input_img,change[0])
         Debug("获取原图改变区域成功!")
         edit_mask,edit_box=GroundingDINO_SAM2(output_img,change[1])
@@ -193,7 +175,7 @@ def Run():
             return
     else:
         #获取所有待测试的数据
-        idx=11
+        idx=1
         while True:
             try:
                 target_img=f"data/{idx}/0.jpg"

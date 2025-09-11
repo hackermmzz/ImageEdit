@@ -10,9 +10,7 @@ from sam2.sam2_image_predictor import SAM2ImagePredictor
 from transformers import AutoProcessor, AutoModelForZeroShotObjectDetection 
 from transformers import CLIPModel, CLIPProcessor
 from scipy.spatial.distance import cosine
-
-########################################################
-DEVICE="cuda" if torch.cuda.is_available() else "cpu"
+from Tips import DEVICE
 ########################################################
 GroundingProcessor=AutoProcessor.from_pretrained("IDEA-Research/grounding-dino-tiny")
 GroundingModel=AutoModelForZeroShotObjectDetection.from_pretrained("IDEA-Research/grounding-dino-tiny").to(DEVICE)
@@ -20,25 +18,24 @@ SamModel=build_sam2("configs/sam2.1/sam2.1_hiera_l.yaml", "./checkpoints/sam2.1_
 SamPredictor=SAM2ImagePredictor(SamModel)
 CLIPProcessor=CLIPProcessor.from_pretrained("openai/clip-vit-large-patch14")
 CLIPModel = CLIPModel.from_pretrained("openai/clip-vit-large-patch14").to(DEVICE).eval()
-########################################################
+########################################################计算CLIP分数
+def CLIPScore(image, target:str):
+    with torch.no_grad():
+        inputs = CLIPProcessor(images=image, return_tensors="pt").to(DEVICE)
+        embedding_0 = CLIPModel.get_image_features(** inputs)
+        inputs =CLIPProcessor(text=target,return_tensors="pt").to(DEVICE)
+        embedding_1=CLIPModel.get_text_features(**inputs)
+    imageD=embedding_0.cpu().numpy().flatten()
+    textD=embedding_1.cpu().numpy().flatten()
+    imageD = imageD / np.linalg.norm(imageD)
+    textD = textD / np.linalg.norm(textD)
+    return 1.0-cosine(imageD, textD)
+######################################################抠图
 def GroundingDINO_SAM2(image,text_prompt:str):
     torch.autocast(device_type=DEVICE, dtype=torch.bfloat16).__enter__()
     if torch.cuda.is_available() and torch.cuda.get_device_properties(0).major >= 8:
         torch.backends.cuda.matmul.allow_tf32 = True
         torch.backends.cudnn.allow_tf32 = True
-    #获取clip打分
-    def CLIPScore(image, target:str):
-        with torch.no_grad():
-            with  torch.autocast(device_type=DEVICE, enabled=False):
-                inputs = CLIPProcessor(images=image, return_tensors="pt").to(DEVICE)
-                embedding_0 = CLIPModel.get_image_features(** inputs)
-                inputs =CLIPProcessor(text=target,return_tensors="pt").to(DEVICE)
-                embedding_1=CLIPModel.get_text_features(**inputs)
-        imageD=embedding_0.cpu().numpy().flatten()
-        textD=embedding_1.cpu().numpy().flatten()
-        imageD = imageD / np.linalg.norm(imageD)
-        textD = textD / np.linalg.norm(textD)
-        return 1.0-cosine(imageD, textD)
     #运行获取sam结果和grounding结果
     def run(text_threshold:float,box_threshold:float):
         SamPredictor.set_image(np.array(image))

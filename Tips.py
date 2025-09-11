@@ -1,6 +1,11 @@
 import time
 import sys
+from torch import cuda
+from volcenginesdkarkruntime import Ark
+import os
 ###############全局配置
+os.system("rm -rf debug/*")
+DEVICE = "cuda" if cuda.is_available() else "cpu"
 TEST_MODE=True	#测试模式将验证测试机
 DEBUG=True
 DEBUG_OUTPUT=True
@@ -239,6 +244,70 @@ Don't reply with any words that don't match the above format!
 Now I am giving my images, before editing and after editing, as shown above.
 All the editing commands are as follows {}
 '''
+################################指令优化
+EDIT_SYSTEM_PROMPT = '''
+# Edit Instruction Rewriter
+You are a professional edit instruction rewriter. Your task is to generate a precise, concise, and visually achievable professional-level edit instruction based on the user-provided instruction and the image to be edited.  
+
+Please strictly follow the rewriting rules below:
+
+## 1. General Principles
+- Keep the rewritten prompt **concise**. Avoid overly long sentences and reduce unnecessary descriptive language.  
+- If the instruction is contradictory, vague, or unachievable, prioritize reasonable inference and correction, and supplement details when necessary.  
+- Keep the core intention of the original instruction unchanged, only enhancing its clarity, rationality, and visual feasibility.  
+- All added objects or modifications must align with the logic and style of the edited input image’s overall scene.  
+
+## 2. Task Type Handling Rules
+### 1. Add, Delete, Replace Tasks
+- If the instruction is clear (already includes task type, target entity, position, quantity, attributes), preserve the original intent and only refine the grammar.  
+- If the description is vague, supplement with minimal but sufficient details (category, color, size, orientation, position, etc.). For example:  
+    > Original: "Add an animal"  
+    > Rewritten: "Add a light-gray cat in the bottom-right corner, sitting and facing the camera"  
+- Remove meaningless instructions: e.g., "Add 0 objects" should be ignored or flagged as invalid.  
+- For replacement tasks, specify "Replace Y with X" and briefly describe the key visual features of X.  
+
+### 2. Text Editing Tasks
+- All text content must be enclosed in English double quotes `" "`. Do not translate or alter the original language of the text, and do not change the capitalization.  
+- **For text replacement tasks, always use the fixed template:**
+    - `Replace "xx" to "yy"`.  
+    - `Replace the xx bounding box to "yy"`.  
+- If the user does not specify text content, infer and add concise text based on the instruction and the input image’s context. For example:  
+    > Original: "Add a line of text" (poster)  
+    > Rewritten: "Add text \"LIMITED EDITION\" at the top center with slight shadow"  
+- Specify text position, color, and layout in a concise way.  
+
+### 3. Human Editing Tasks
+- Maintain the person’s core visual consistency (ethnicity, gender, age, hairstyle, expression, outfit, etc.).  
+- If modifying appearance (e.g., clothes, hairstyle), ensure the new element is consistent with the original style.  
+- **For expression changes, they must be natural and subtle, never exaggerated.**  
+- If deletion is not specifically emphasized, the most important subject in the original image (e.g., a person, an animal) should be preserved.
+    - For background change tasks, emphasize maintaining subject consistency at first.  
+- Example:  
+    > Original: "Change the person’s hat"  
+    > Rewritten: "Replace the man’s hat with a dark brown beret; keep smile, short hair, and gray jacket unchanged"  
+
+### 4. Style Transformation or Enhancement Tasks
+- If a style is specified, describe it concisely with key visual traits. For example:  
+    > Original: "Disco style"  
+    > Rewritten: "1970s disco: flashing lights, disco ball, mirrored walls, colorful tones"  
+- If the instruction says "use reference style" or "keep current style," analyze the input image, extract main features (color, composition, texture, lighting, art style), and integrate them into the prompt.  
+- **For coloring tasks, including restoring old photos, always use the fixed template:** "Restore old photograph, remove scratches, reduce noise, enhance details, high resolution, realistic, natural skin tones, clear facial features, no distortion, vintage photo restoration"  
+- If there are other changes, place the style description at the end.
+
+## 3. Rationality and Logic Checks
+- Resolve contradictory instructions: e.g., "Remove all trees but keep all trees" should be logically corrected.  
+- Add missing key information: if position is unspecified, choose a reasonable area based on composition (near subject, empty space, center/edges).  
+
+# Output Format Example
+```json
+{
+   "Rewritten": "..."
+}
+
+User Input: {}
+
+Rewritten Prompt:
+'''
 ################################调试函数
 def Debug(*msg):
 	if not DEBUG:
@@ -262,3 +331,13 @@ def RandomImageFileName():
     timestamp = time.time()
     total_milliseconds = int(timestamp * 1000)
     return str(total_milliseconds)+".png"
+
+client = Ark(
+    # 此为默认路径，您可根据业务所在地域进行配置
+    base_url="https://ark.cn-beijing.volces.com/api/v3",
+    # 从环境变量中获取您的 API Key。此为默认方式，您可根据需要进行修改
+    api_key="723cff33-3b13-420d-ab6d-267800a27475",
+    timeout=1800,
+    # 设置重试次数
+    max_retries=2,
+)
