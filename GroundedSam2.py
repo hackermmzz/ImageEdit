@@ -10,11 +10,11 @@ from sam2.sam2_image_predictor import SAM2ImagePredictor
 from transformers import AutoProcessor, AutoModelForZeroShotObjectDetection 
 from transformers import CLIPModel, CLIPProcessor
 from scipy.spatial.distance import cosine
-from Tips import DEVICE
+from Tips import *
 ########################################################
 GroundingProcessor=AutoProcessor.from_pretrained("IDEA-Research/grounding-dino-tiny")
-GroundingModel=AutoModelForZeroShotObjectDetection.from_pretrained("IDEA-Research/grounding-dino-tiny").to(DEVICE)
-SamModel=build_sam2("configs/sam2.1/sam2.1_hiera_l.yaml", "./checkpoints/sam2.1_hiera_large.pt", device=DEVICE)
+GroundingModel=AutoModelForZeroShotObjectDetection.from_pretrained("IDEA-Research/grounding-dino-tiny").to(DEVICE).eval()
+SamModel=build_sam2("configs/sam2.1/sam2.1_hiera_l.yaml", "./checkpoints/sam2.1_hiera_large.pt", device=DEVICE).eval()
 SamPredictor=SAM2ImagePredictor(SamModel)
 CLIPProcessor=CLIPProcessor.from_pretrained("openai/clip-vit-large-patch14")
 CLIPModel = CLIPModel.from_pretrained("openai/clip-vit-large-patch14").to(DEVICE).eval()
@@ -32,10 +32,6 @@ def CLIPScore(image, target:str):
     return 1.0-cosine(imageD, textD)
 ######################################################抠图
 def GroundingDINO_SAM2(image,text_prompt:str):
-    torch.autocast(device_type=DEVICE, dtype=torch.bfloat16).__enter__()
-    if torch.cuda.is_available() and torch.cuda.get_device_properties(0).major >= 8:
-        torch.backends.cuda.matmul.allow_tf32 = True
-        torch.backends.cudnn.allow_tf32 = True
     #运行获取sam结果和grounding结果
     def run(text_threshold:float,box_threshold:float):
         SamPredictor.set_image(np.array(image))
@@ -124,13 +120,16 @@ def GroundingDINO_SAM2(image,text_prompt:str):
                     target_box=box
                     target_mask=mask
             except Exception as e:
-                print("Exception:",e)
+                Debug("Exception:",e)
+        if maxscore<0.0:
+            raise Exception("None capture")
         return target_mask,target_box
     #
     def EnsureGet(text_threshold,box_threshold):
+        if text_threshold<0.0 or box_threshold<0.0:
+            return None,None
         try:
             return run(text_threshold,box_threshold)
         except Exception as e:
             return EnsureGet(text_threshold-0.05,box_threshold-0.05)
     return EnsureGet(0.8,0.8)
-

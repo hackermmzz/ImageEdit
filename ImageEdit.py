@@ -6,10 +6,16 @@ from Tips import *
 from Model import AnswerImage
 import json
 from VLM import AnswerImage
+from PIL import Image
+import time
+
 # 配置4bit量化参数
 QUANT_CONFIG = {
             "load_in_4bit": True,
             "load_in_8bit": False,
+            "bnb_4bit_quant_type": "nf4",       # NV推荐的NF4量化，适配A800
+            "bnb_4bit_compute_dtype": torch.bfloat16,  # 计算用bfloat16，A800原生支持
+            "bnb_4bit_use_double_quant": True,  # 双量化优化，减少参数冗余
         }
 # 使用4bit量化加载模型
 pipeline = QwenImageEditPipeline.from_pretrained(
@@ -78,8 +84,10 @@ def ImageEditApi(image,prompt:str,neg_prompt=" "):
     return image.convert("RGB")
     '''
 ###############################给定指令进行编辑
-def EditImage(image,prompt:str,negative_prompt="",polish_prompt=True):
-    if polish_prompt:
-        prompt=polish_edit_prompt(image,prompt)
-    return ImageEditApi(image,prompt,negative_prompt)
-    
+def EditImage(image,prompt:str,negative_prompt_list=None):
+    negative_prompt=" "
+    if negative_prompt_list:
+        for x in negative_prompt_list:
+            negative_prompt=negative_prompt+x+"."
+    res=ImageEditApi(image,prompt,negative_prompt)
+    return res
