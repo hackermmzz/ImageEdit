@@ -97,20 +97,21 @@ def ProcessImageEdit(img_path:str,prompt:str,dir="./"):
     global_itr_cnt=0
     neg_prompts=[]
     while i <len(tasks):
+        epoch=i+1
+        Debug(f"第{epoch}次指令编辑开始!")
         #任务优化
         Debug("正在进行任务优化:")
         task=polish_edit_prompt(input_img,tasks[i])
-        #
-        Debug(f"第{i+1}次指令编辑开始!,指令为:{task}")
+        Debug("优化指令为:{}".format(task))
         ###########编辑图像
         Debug("正在进行图像编辑...")
         output_img=EditImage(input_img,task,neg_prompts)
         #将output和input缩放到同一个尺寸
         output_img=output_img.resize(input_img.size)
         Debug("图像编辑完成!")
-        DebugSaveImage(output_img,f"edited_image_{i+1}_"+RandomImageFileName(),dir=dir)
+        DebugSaveImage(output_img,f"edited_image_{epoch}_"+RandomImageFileName(),dir=dir)
         ###########负反馈
-        local_score,global_score,neg_prompt=NegativeFeedback(task,changes[i],input_img,output_img,i+1,local_itr_cnt<LocalItrThershold,global_itr_cnt<GlobalItrThershold)
+        local_score,global_score,neg_prompt=NegativeFeedback(task,changes[i],input_img,output_img,epoch,local_itr_cnt<LocalItrThershold,global_itr_cnt<GlobalItrThershold,dir)
         if local_score<LocalScoreThershold:
             neg_prompts.append(neg_prompt)
             local_itr_cnt+=1

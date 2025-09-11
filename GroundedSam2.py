@@ -75,9 +75,9 @@ def GroundingDINO_SAM2(image,text_prompt:str):
         )
         
         # 存储提取的区域
-        extracted_masks = []    # 存储分割出的区域
-        extracted_boxes = []    # 存储带边界框的区域
-        
+        extracted_masks_img = []    # 存储分割出的区域
+        extracted_boxes_img = []    # 存储带边界框的区域
+        extracted_boxes = []
         # 遍历每个检测结果，提取对应的区域
         for i in range(len(detections)):
             # 获取单个检测的掩码和边界框
@@ -105,31 +105,38 @@ def GroundingDINO_SAM2(image,text_prompt:str):
             cropped_box = box_rgb[y1:y2, x1:x2]
             pil_box = Image.fromarray(cropped_box)
             #保存
-            extracted_masks.append(pil_mask.convert("RGB"))
-            extracted_boxes.append(pil_box.convert("RGB"))
+            extracted_masks_img.append(pil_mask.convert("RGB"))
+            extracted_boxes_img.append(pil_box.convert("RGB"))
+            extracted_boxes.append((x1,y1,x2,y2))
         #从里面选取CLIP分数最高的
         maxscore=-1.0
-        target_mask=None
+        target_mask_image=None
+        target_box_image=None
         target_box=None
         for i in range(len(extracted_boxes)):
             try:
-                mask,box=extracted_masks[i],extracted_boxes[i]
+                mask,box=extracted_masks_img[i],extracted_boxes_img[i]
                 score=max(CLIPScore(mask,text_prompt),CLIPScore(box,text_prompt))
                 if score>maxscore:
                     maxscore=score
-                    target_box=box
-                    target_mask=mask
+                    target_box_image=box
+                    target_mask_image=mask
+                    target_box=extracted_boxes[i]
             except Exception as e:
                 Debug("Exception:",e)
         if maxscore<0.0:
             raise Exception("None capture")
-        return target_mask,target_box
+        return target_mask_image,target_box_image,target_box
     #
     def EnsureGet(text_threshold,box_threshold):
         if text_threshold<0.0 or box_threshold<0.0:
-            return None,None
+            return None,None,None
         try:
             return run(text_threshold,box_threshold)
         except Exception as e:
             return EnsureGet(text_threshold-0.05,box_threshold-0.05)
     return EnsureGet(0.8,0.8)
+if __name__=="__main__":
+    mask,box,_=GroundingDINO_SAM2(Image.open("debug/edited_image_1_1757612495010.png").convert("RGB"),"'kid wearing a black t-shirt on the road")
+    mask.save('mask.png')
+    box.save("box.png")
