@@ -9,6 +9,7 @@ from GroundedSam2 import*
 from ImageEdit import*
 from LLM import *
 from VLM import *
+from Model import *
 ######################################下载数据集
 def DownloadDataSet(save_path,count=4096):
     if os.path.exists(save_path):
@@ -70,8 +71,6 @@ def Init():
     data=LoadData(db_path)
     #拆解成数据包
     DivideData(data,"data")
-    #加载所有模型
-    LoadAllModel()
 #运行一个单例
 def ProcessImageEdit(img_path:str,prompt:str,dir="./"):
     #创建目录
@@ -80,22 +79,21 @@ def ProcessImageEdit(img_path:str,prompt:str,dir="./"):
     #加载图片
     ori_image=Image.open(img_path).convert("RGB")
     ########################################第一层：专家池
-    agent0=TopAgent()
     #专家1 分析图像中的场景
     Debug("正在获取场景描述...")
-    scene_json=agent0.GetDescription(ori_image)
+    scene_json=GetDescription(ori_image)
     Debug("场景描述:",scene_json)
     #专家2 任务细分
     Debug("正在进行任务细分...")
-    tasks=agent0.GetTask(prompt)
+    tasks=GetTask(prompt)
     Debug("任务细分:",tasks)
     #专家3 任务优化
     Debug("正在进行任务优化...")
-    refine_tasks=agent0.RefineTasks(scene_json,tasks)
+    refine_tasks=RefineTasks(scene_json,tasks)
     Debug("任务优化:",refine_tasks)
     #专家4 获取图像变化
     Debug("正在获取图像信息改变...")
-    changes=agent0.GetChange(scene_json,tasks)
+    changes=GetChange(scene_json,tasks)
     Debug("图像改变信息:",changes)
     ##########################################第二层：任务链
     input_img=ori_image
