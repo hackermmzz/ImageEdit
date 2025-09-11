@@ -11,10 +11,10 @@ DEBUG=True
 DEBUG_OUTPUT=True
 DEBUG_DIR="debug/"
 DEBUG_FILE=sys.stdout if (not DEBUG or not DEBUG_OUTPUT) else open(f"{DEBUG_DIR}/debug.txt","w")
-LocalScoreTherold=5
-LocalItrTherold=2
-GlobalScoreTherold=5
-GlobalItrTherold=2
+LocalScoreThershold=5
+LocalItrThershold=2
+GlobalScoreThershold=5
+GlobalItrThershold=2
 GroundingDINOClipScoreThreold=0.22
 ###############对图片的场景就行概述
 Expert1_Prompt='''
@@ -25,25 +25,37 @@ don't give any other information except json.
 '''
 ################对任务进行细分
 Expert2_Prompt='''
-Let's say you're an expert at dividing editing tasks. I'm going to give you an editing task that will contain many sub-tasks that can be done in one round of editing, and your goal is to identify and divide them. Just answer me in the given format without any other words appearing.
+Let's say you're a professional and detailed image editing task subdivider, specializing in breaking down a single comprehensive image editing task (which contains multiple interrelated yet independently executable sub-tasks that can all be completed in one round of editing) into clear, specific, and actionable individual sub-editing instructions. Your core goal is to accurately identify every effective editing operation hidden in the original task, ensure no sub-task is omitted or incorrectly split, and present them in a standardized format.
+
+### Key Operating Rules (Must Be Strictly Followed):
+1. **Definition of Valid Sub-Tasks**: Only include sub-tasks that truly modify the image (i.e., bring about changes to elements in the image). Any content that requires keeping elements unchanged, maintaining the original state, or not performing edits (such as "keep the background color unchanged", "do not adjust the size of the chair", "maintain the original style of the picture frame") must be completely excluded and not listed in the result.
+2. **Standard for Sub-Task Division**: Each sub-task must target **one specific element** in the image (e.g., a teacup, a person's right hand, the environment, a teapot, clouds in the sky, a car, a person's hairstyle, a table's material, window curtains, etc.) and execute **one single editing operation** (e.g., changing color, adjusting posture, replacing the environment, adding an object, deleting an object, replacing an object, modifying material, adjusting brightness, changing hairstyle, etc.). Sub-tasks must be independent of each other—completing one sub-task does not rely on another, and each can be executed separately.
+3. **Clarity and Specificity Requirements**: Each sub-task string must be concise, clear, and free of ambiguous expressions. Avoid vague descriptions (e.g., do not use "fix the cup" but instead "change the color of the cup to red"; do not use "adjust the person" but instead "make the person's left hand hold a book"). Ensure that the edited object and the specific editing action are clearly stated.
+4. **Example Reference**: For instance, if the original task is "change the color of the sofa to gray, let the child hold a teddy bear, remove the potted plant on the table, and replace the wall painting with a landscape photo", the subdivided sub-tasks should be:
+   - "Change the color of the sofa to gray."
+   - "Make the child hold a teddy bear."
+   - "Remove the potted plant on the table."
+   - "Replace the wall painting with a landscape photo."
+
+### Format Requirements (Non-Negotiable):
+- You must only output the subdivided sub-tasks in an array [] format. Each sub-task is a separate string enclosed in double quotes, and commas are used to separate different sub-task strings.
+- Do not add any additional content outside the array (such as explanations, prompts, notes, or greetings). Even if the original task has only one sub-task, it must still be placed in the array.
+- The array format must be consistent with the example (neatly formatted, with each sub-task string on a new line for readability, but ensuring the syntax of the array is correct).
+
 Example:
-	Question: change the colour of the teacup to black and have the person's right hand in a yay pose, change the setting to a green meadow, add a teapot, delete the clouds in the sky and replace them with rainbows
-	Your answers:
-			[
-			 "The colour of the teacup is changed to black.",
-			 "The person's right hand makes a yay pose.",
-			 "The environment is changed to a green meadow",
-			 "Add a teapot",
-			 "delete the clouds in the sky",
-			 "add a rainbow in the sky"
-    		]
-Please remember:
-(1)if the task doesn't bring about a change or simply stays the same such as keep the background unchanged and so on, then you don't need to give it as a result, you need to give the task that actually goes and edits the image
-(2)the answer you output must like [ans0,ans1,ans2...]
-(3)don't give me any other response or words except the target format answer!
+Question: change the colour of the teacup to black and have the person's right hand in a yay pose, change the setting to a green meadow, add a teapot, delete the clouds in the sky and replace them with rainbows
+Your answers:
+[
+ "The colour of the teacup is changed to black.",
+ "The person's right hand makes a yay pose.",
+ "The environment is changed to a green meadow",
+ "Add a teapot",
+ "delete the clouds in the sky",
+ "add a rainbow in the sky"
+]
 
 Now I will give my query:
-	My task is:{}
+My task is:{}
 '''
 #############################获取改变
 Expert3_Prompt='''
