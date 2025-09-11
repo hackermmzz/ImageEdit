@@ -137,7 +137,3 @@ def GroundingDINO_SAM2(image,text_prompt:str):
             return EnsureGet(text_threshold-0.05,box_threshold-0.05)
     return EnsureGet(0.8,0.8)
 
-res0,res1=GroundingDINO_SAM2(Image.open("data/82/0.jpg").convert("RGB"),"snake")
-res0.save("mask.png")
-res1.save("box.png")
-
