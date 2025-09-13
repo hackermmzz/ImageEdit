@@ -48,14 +48,18 @@ def polish_edit_prompt(img,prompt):
             print(f"[Warning] Error during API call: {e}")
     return polished_prompt
 ###################################图像编辑
-def ImageEditApi(image,prompt:str,neg_prompt=" "):
+def ImageEditApi(image,prompt:str,neg_prompt, prompt_mask=None):
     inputs = {
         "image": image,
         "prompt": prompt,
         "generator": torch.manual_seed(random.randint(0,np.iinfo(np.int32).max)),
-        "true_cfg_scale": 4.0,
+        "true_cfg_scale": 4,
         "negative_prompt": neg_prompt,
         "num_inference_steps": 50,
+        "width":image.size[0],
+        "height":image.size[1],
+        "guidance_scale":6,
+        "prompt_embeds_mask":prompt_mask
     }
     with torch.inference_mode():
         output = pipeline(** inputs)
@@ -84,10 +88,29 @@ def ImageEditApi(image,prompt:str,neg_prompt=" "):
     return image.convert("RGB")
     '''
 ###############################给定指令进行编辑
-def EditImage(image,prompt:str,negative_prompt_list=None):
+def EditImage(image,prompt:str,negative_prompt_list=None,prompt_mask=None):
     negative_prompt=" "
     if negative_prompt_list:
         for x in negative_prompt_list:
             negative_prompt=negative_prompt+x+"."
-    res=ImageEditApi(image,prompt,negative_prompt)
+    res=ImageEditApi(image,prompt,negative_prompt,prompt_mask)
     return res
+
+
+
+
+################################测试
+if __name__=="__main__":
+    while True:
+        mask_image = Image.open("ori.png").convert("L")
+        # 转为 NumPy 数组，并标准化到 0~1
+        mask_np = np.array(mask_image).astype(np.float32) / 255.0
+        # 转换为 torch.Tensor (1, 1, H, W) —— 模型要求的 batch size
+        prompt_mask = torch.tensor(mask_np).unsqueeze(0).unsqueeze(0).to("cuda")
+        
+        path=input("path:")
+        image=Image.open(path).convert("RGB")
+        prompt=input("prompt:")
+        neg_prompt=input("neg_prompt:")
+        res=EditImage(image,prompt,[neg_prompt],prompt_mask)
+        res.save("output.png")

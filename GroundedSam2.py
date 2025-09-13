@@ -12,8 +12,8 @@ from transformers import CLIPModel, CLIPProcessor
 from scipy.spatial.distance import cosine
 from Tips import *
 ########################################################
-GroundingProcessor=AutoProcessor.from_pretrained("IDEA-Research/grounding-dino-tiny")
-GroundingModel=AutoModelForZeroShotObjectDetection.from_pretrained("IDEA-Research/grounding-dino-tiny").to(DEVICE).eval()
+GroundingProcessor=AutoProcessor.from_pretrained("IDEA-Research/grounding-dino-base")
+GroundingModel=AutoModelForZeroShotObjectDetection.from_pretrained("IDEA-Research/grounding-dino-base").to(DEVICE).eval()
 SamModel=build_sam2("configs/sam2.1/sam2.1_hiera_l.yaml", "./checkpoints/sam2.1_hiera_large.pt", device=DEVICE).eval()
 SamPredictor=SAM2ImagePredictor(SamModel)
 CLIPProcessor=CLIPProcessor.from_pretrained("openai/clip-vit-large-patch14")
@@ -75,44 +75,46 @@ def GroundingDINO_SAM2(image,text_prompt:str):
         )
         
         # 存储提取的区域
-        extracted_masks_img = []    # 存储分割出的区域
-        extracted_boxes_img = []    # 存储带边界框的区域
-        extracted_boxes = []
-        # 遍历每个检测结果，提取对应的区域
+        extracted_masks_img = []    # 分割掩码图像
+        extracted_boxes_img = []    # 裁剪的box区域图像
+        extracted_boxes = []        # 边框坐标
+        original_overlay_images = []  # 每个目标在原图上的叠加图像
+
         for i in range(len(detections)):
-            # 获取单个检测的掩码和边界框
             mask = detections.mask[i]
             x1, y1, x2, y2 = detections.xyxy[i].astype(int)
-            
-            # 1. 提取分割区域（带透明背景）
-            # 创建一个与原图相同大小的透明图像
-            extracted_mask = np.zeros((img.shape[0], img.shape[1], 4), dtype=np.uint8)
-            
-            # 将原图的BGR转换为RGB
+
+            # 原图 RGB
             rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-            # 将原图像素复制到提取区域，掩码区域可见，其他区域透明
+
+            # 1. 提取掩码区域图像（透明背景）
+            extracted_mask = np.zeros((img.shape[0], img.shape[1], 4), dtype=np.uint8)
             extracted_mask[mask] = np.concatenate([
-                rgb_img[mask],  # RGB通道
-                255 * np.ones((mask.sum(), 1), dtype=np.uint8)  # Alpha通道（不透明）
+                rgb_img[mask],
+                255 * np.ones((mask.sum(), 1), dtype=np.uint8)
             ], axis=1)
-            
-            # 转换为PIL Image并添加到结果列表
             pil_mask = Image.fromarray(extracted_mask)
-            #
-            box_img = img.copy()
-            # 转换为RGB并裁剪边界框区域
-            box_rgb = cv2.cvtColor(box_img, cv2.COLOR_BGR2RGB)
-            cropped_box = box_rgb[y1:y2, x1:x2]
-            pil_box = Image.fromarray(cropped_box)
-            #保存
-            extracted_masks_img.append(pil_mask.convert("RGB"))
+
+            # 2. 裁剪 box 图像
+            box_rgb = rgb_img[y1:y2, x1:x2]
+            pil_box = Image.fromarray(box_rgb)
+
+            # 3. 构建原图大小的 overlay，只保留目标区域，其他黑色或透明
+            overlay = np.zeros_like(rgb_img, dtype=np.uint8)
+            overlay[mask] = rgb_img[mask]
+            pil_overlay = Image.fromarray(overlay)
+
+            # 保存结果
+            extracted_masks_img.append(pil_mask.convert("RGB"))  # 或保持透明
             extracted_boxes_img.append(pil_box.convert("RGB"))
-            extracted_boxes.append((x1,y1,x2,y2))
-        #从里面选取CLIP分数最高的
-        maxscore=-1.0
-        target_mask_image=None
-        target_box_image=None
-        target_box=None
+            extracted_boxes.append((x1, y1, x2, y2))
+            original_overlay_images.append(pil_overlay)
+            #从里面选取CLIP分数最高的
+            maxscore=-1.0
+            target_mask_image=None
+            target_box_image=None
+            target_box=None
+            target_original_mask=None
         for i in range(len(extracted_boxes)):
             try:
                 mask,box=extracted_masks_img[i],extracted_boxes_img[i]
@@ -122,21 +124,27 @@ def GroundingDINO_SAM2(image,text_prompt:str):
                     target_box_image=box
                     target_mask_image=mask
                     target_box=extracted_boxes[i]
+                    target_original_mask=original_overlay_images[i]
             except Exception as e:
                 Debug("Exception:",e)
         if maxscore<0.0:
             raise Exception("None capture")
-        return target_mask_image,target_box_image,target_box
+        return target_mask_image,target_box_image,target_original_mask,target_box,maxscore
     #
     def EnsureGet(text_threshold,box_threshold):
         if text_threshold<0.0 or box_threshold<0.0:
-            return None,None,None
+            return None,None,None,None
         try:
             return run(text_threshold,box_threshold)
         except Exception as e:
             return EnsureGet(text_threshold-0.05,box_threshold-0.05)
     return EnsureGet(0.8,0.8)
 if __name__=="__main__":
-    mask,box,_=GroundingDINO_SAM2(Image.open("debug/edited_image_1_1757612495010.png").convert("RGB"),"'kid wearing a black t-shirt on the road")
-    mask.save('mask.png')
-    box.save("box.png")
+    while True:
+        path=input("path:")
+        prompt=input("prompt:")
+        mask,box,ori_mask,_,score=GroundingDINO_SAM2(Image.open(path).convert("RGB"),prompt)
+        print(score)
+        mask.save('debug/mask.png')
+        box.save("debug/box.png")
+        ori_mask.save("debug/ori.png")

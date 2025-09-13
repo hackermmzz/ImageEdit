@@ -26,7 +26,7 @@ def AnswerText(question:str):
     ##########################调用豆包大模型
     try:
         # Non-streaming:
-        completion = client.chat.completions.create(
+        completion = client0.chat.completions.create(
             # 指定您创建的方舟推理接入点 ID，此处已帮您修改为您的推理接入点 ID
             model="doubao-1-5-pro-256k-250115",
             messages=[

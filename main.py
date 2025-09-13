@@ -1,75 +1,14 @@
-import io
 import os
-from datasets import load_from_disk,load_dataset,Dataset
 from PIL import Image
-import json
 from GroundedSam2 import*
 from ImageEdit import*
 from LLM import *
 from VLM import *
 from Model import *
 from NegativeFeedback import *
-######################################下载数据集
-def DownloadDataSet(save_path,count=4096):
-    if os.path.exists(save_path):
-        return
-    ds = load_dataset("leigangqu/VINCIE-10M",streaming=True,split="train")
-    ds=list(ds.take(count))
-    ds=Dataset.from_list(ds)
-    ds.save_to_disk(save_path)
-######################################获取数据
-def LoadData(path):
-    dataset = load_from_disk(dataset_path=path)#加载数据集
-    data=[]
-    for item in dataset:
-        try:
-            total_frames = len(item['image'])
-            total_frames = len(item['image'])
-            split_point = total_frames // 2
-            #获取两个图像
-            input_frames = item['image'][:split_point]
-            output_frames = item['image'][split_point:]
-            #获取指令描述
-            description = json.loads(item["ann_v0"])[0]["text"]["summary_change"]
-            #
-            sj={"input_img":input_frames,"description":description,"output_img":output_frames}
-            #
-            data.append(sj)
-        except Exception as e:
-            pass
-    #
-    return data
-###################################拆分数据
-def DivideData(data,path,debug=False):
-    if os.path.exists(path)==False:
-        os.mkdir(path)
-    elif not debug:
-        return
-    #
-    idx=0
-    for ele in data:
-        idx+=1
-        sub_folder=path+"/"+str(idx)
-        if os.path.exists(sub_folder)==False:
-            os.mkdir(sub_folder)
-        #
-        def Save(idx,img_data):
-            img=Image.open(io.BytesIO(img_data))
-            img.save(sub_folder+"/"+f"{idx}.jpg")
-
-        Save(0,ele["input_img"][0])
-        Save(1,ele["output_img"][0])
-        with open(sub_folder+"/ins.txt",mode="w",encoding="utf-8") as f:
-            f.write(ele["description"])
 #初始化
 def Init():
-    db_path="datasets/"
-    #下载数据集
-    DownloadDataSet(db_path)
-    #加载数据
-    data=LoadData(db_path)
-    #拆解成数据包
-    DivideData(data,"data")
+   pass
 #运行一个单例
 def ProcessImageEdit(img_path:str,prompt:str,dir="./"):
     #创建目录
@@ -77,32 +16,36 @@ def ProcessImageEdit(img_path:str,prompt:str,dir="./"):
         os.makedirs(dir)
     #加载图片
     ori_image=Image.open(img_path).convert("RGB")
+    DebugSaveImage(ori_image,f"origin_image_{RandomImageFileName()}",dir)
     ########################################第一层：专家池
-    #专家1 分析图像中的场景
-    Debug("正在获取场景描述...")
-    scene_json=GetDescription(ori_image)
-    Debug("场景描述:",scene_json)
-    #专家2 任务细分
+    #专家1 任务细分
+    Debug("原指令为:",prompt)
     Debug("正在进行任务细分...")
-    tasks=GetTask(prompt)
+    tasks=GetTask(ori_image,prompt)
     Debug("任务细分:",tasks)
-    #专家3 获取图像变化
-    Debug("正在获取图像信息改变...")
-    changes=GetChange(scene_json,tasks)
-    Debug("图像改变信息:",changes)
     ##########################################第二层：任务链
     input_img=ori_image
     i=0
     local_itr_cnt=0
     global_itr_cnt=0
     neg_prompts=[]
+    loop=False
+    task=None
+    change=None
+    mask=None
     while i <len(tasks):
         epoch=i+1
         Debug(f"第{epoch}次指令编辑开始!")
         #任务优化
-        Debug("正在进行任务优化:")
-        task=polish_edit_prompt(input_img,tasks[i])
-        Debug("优化指令为:{}".format(task))
+        if not loop:
+            Debug("正在进行任务优化...")
+            task=polish_edit_prompt(input_img,tasks[i])
+            Debug(f"优化指令为:{task}")
+        #获取执行指令后的图像改变信息
+        if not loop:
+            Debug("正在获取图像信息改变...")
+            change=GetChange(input_img,task)
+            Debug("图像改变信息:",change)
         ###########编辑图像
         Debug("正在进行图像编辑...")
         output_img=EditImage(input_img,task,neg_prompts)
@@ -111,14 +54,20 @@ def ProcessImageEdit(img_path:str,prompt:str,dir="./"):
         Debug("图像编辑完成!")
         DebugSaveImage(output_img,f"edited_image_{epoch}_"+RandomImageFileName(),dir=dir)
         ###########负反馈
-        local_score,global_score,neg_prompt=NegativeFeedback(task,changes[i],input_img,output_img,epoch,local_itr_cnt<LocalItrThershold,global_itr_cnt<GlobalItrThershold,dir)
+        res=NegativeFeedback(task,change,input_img,output_img,epoch,local_itr_cnt<LocalItrThershold,global_itr_cnt<GlobalItrThershold,dir)
+        local_score=res[0]
+        global_score=res[1]
+        neg_prompt=res[2]
+        pos_prompt=res[3]
         if local_score<LocalScoreThershold:
             neg_prompts.append(neg_prompt)
             local_itr_cnt+=1
+            loop=True
             continue
         elif global_score<GlobalScoreThershold:
             neg_prompts.append(neg_prompt)
             global_itr_cnt+=1
+            loop=True
             continue
         #下一个任务
         i+=1
@@ -126,6 +75,7 @@ def ProcessImageEdit(img_path:str,prompt:str,dir="./"):
         global_itr_cnt=0
         input_img=output_img
         neg_prompts=[]
+        loop=False
     ###################################第三层：打分
     Debug("图片评分中....")
     score=GetCriticScore(ori_image,input_img,task)
@@ -146,8 +96,14 @@ def Run():
             return
     else:
         #获取所有待测试的数据
-        idx=1
-        while True:
+        all=[x for x in range(1,4091)]
+        target=[]
+        while len(all)!=0:
+            x=random.randint(0,len(all)-1)
+            target.append(all[x])
+            all=all[:x]+all[x+1:]
+        while len(target):
+            idx=target.pop()
             try:
                 target_img=f"data/{idx}/0.jpg"
                 target_prompt_file=f"data/{idx}/ins.txt"
