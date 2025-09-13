@@ -3,19 +3,20 @@ import sys
 from torch import cuda
 from volcenginesdkarkruntime import Ark
 import os
+from openai import OpenAI
 ###############全局配置
 os.system("rm -rf debug/*")
 DEVICE = "cuda" if cuda.is_available() else "cpu"
-TEST_MODE=False	#测试模式将验证测试机
+TEST_MODE=True	#测试模式将验证测试机
 DEBUG=True
 DEBUG_OUTPUT=True
 DEBUG_DIR="debug/"
 DEBUG_FILE=sys.stdout if (not DEBUG or not DEBUG_OUTPUT) else open(f"{DEBUG_DIR}/debug.txt","w")
-LocalScoreThershold=5
+LocalScoreThershold=7
 LocalItrThershold=2
-GlobalScoreThershold=5
+GlobalScoreThershold=7
 GlobalItrThershold=2
-GroundingDINOClipScoreThreold=0.22
+ClipScoreThreshold=0.21
 ###############对图片的场景就行概述
 Expert1_Prompt='''
 Can you describe this image in detail?
@@ -54,101 +55,40 @@ Your answers:
  "add a rainbow in the sky"
 ]
 
-Now I will give my query:
+Now I will give the image and the task,you should split my task into sub-tasks by the image:
 My task is:{}
 '''
 #############################获取改变
 Expert3_Prompt='''
 Suppose you are now an expert in editing task recognition. 
-I input the scene description json and some editing instructions, you need to output it in my given format and follow the following rules.
+I input the image and one editing instruction, you need to output it in my given format and follow the following rules.
 (1) You are not allowed to output anything that contradicts my given formatting
-(2)The output must fit the instructions.
+(2)The output must fit the instruction.
 (3)It must follow the format of original object:modified object.
 For example:
-Scene:
-	{{
-		"global": {{
-			"scene_type": "outdoor landscape",
-			"background": "a vast grassy meadow with rolling green hills and distant mountains under a bright blue sky with scattered white clouds, creating a serene and open natural environment",
-			"atmosphere": "peaceful, relaxed, and leisurely, suggesting a camping or hiking activity"
-		}},
-		"local": {{
-			"people": {{
-				"appearance": "a person wearing a green hooded jacket, brown pants, and tan hiking boots, sitting on a folding chair",
-				"action": "making a peace sign with the right hand and pointing with the left hand, likely interacting with the camera or someone off-frame"
-			}},
-			"objects": {{
-				"furniture": "a small wooden folding table and a light-colored folding chair",
-				"items_on_table": "an open map and a black mug (possibly containing a beverage)"
-			}},
-			"colors": {{
-				"dominant_colors": "green (jacket, grass, hills), brown (pants, boots, table), blue (sky), and tan (boots, chair)",
-				"color_mood": "earthy tones with vibrant natural hues, creating a harmonious and calming visual"
-			}},
-			"details": {{
-				"textiles": "the jacket has a soft texture, the pants are casual, the chair and table have a simple, functional design",
-				"natural_elements": "grassy field with visible texture, mountains with distinct shapes, clear sky with soft clouds",
-				"lighting": "bright sunlight casting soft shadows, indicating a sunny day"
-			}}
-		}}
-	}}
 Tasks:
-	(1)make Person's right hand in a yay pose
-	(2)make Environment changes to green grass
+	make Person's right hand in a yay pose
 Your answer:
 	[
-     "person with a green hooded jacket:person with a yay pose",
-     "a vast grassy meadow with rolling green hills:a vast grass land"
+    	"person with a green hooded jacket",
+     	"person with a yay pose",
     ]
     You should ensure what you describe will work good for GrounDingDINO and CLIP for next step work in details.
     
-(4)More specifically, you need to follow this format
-	[
-     "Mug:Mug",
-	 "Right Hand:Right Hand",
-	 "Scene:Scene",
-	 "None:teapot",
-	 "Clouds:None",
-	 "None:rainbow"
-  	]
-If the edit operation is add,you should follow the format "None:object",for delete is "object:None",for modifications is "object1:object2"
-Remember you need to ouput the same count of changes description as the instructions I give you!
-You should ensure the size of list you output is the same as the count of instructions!
+(4)If the edit operation is add,you should follow the format "None:object",for delete is "object:None",for modifications is "object1:object2"
  
-(5) For each instruction, your output must specify that this corresponds to the first instruction given, as follows.
-Suppose I give the instruction: (1) ... (2) ... (3) ... The answer you give must also be [ans0,ans1,ans2]
 
-(6)Note that if the change is to a part of an object, then you need to output the whole object, not a part of it
+(5)Note that if the change is to a part of an object, then you need to output the whole object, not a part of it
 For example, 
 the change is to a person's right hand, but you should output the person, not the person's right hand, because the right hand is part of the person, 
 such as adding new clouds in the sky, you should output the sky not the clouds, because the clouds are part of the sky
 
-(7)When you generate an answer for the change brought about by the ith instruction, you have to make sure that the change brought about by the previous i-1 instructions is also taken into account, which means that if a previous instruction changed the colour of a person's clothes to red, even if he started out with the colour green, then you would only be able to say that his clothes are red because the change brought about by these instructions is persistent
+(6)When you generate an answer for the change brought about by the ith instruction, you have to make sure that the change brought about by the previous i-1 instructions is also taken into account, which means that if a previous instruction changed the colour of a person's clothes to red, even if he started out with the colour green, then you would only be able to say that his clothes are red because the change brought about by these instructions is persistent
+The answer you output should be such that when I use GroundingDINO to deduct this part, it is evident that the instruction has been actually executed. For example, when changing a red ring to a green one, it is obvious that you only need to provide "green ring:red ring". Another example: when moving the knife in a person's hand closer to their neck, you should output "person:person" instead of "knife" or "neck". This is because whether the knife is close to the neck is determined based on the entire person's area.
 
-Now the scene description I gave is:{}
 The edit command is:{}
 '''
 
-################################局部打分
-LoalScore_Prompt='''
-You are now an image editing scoring expert. I am going to give you two images, they are the area before editing, and the area after editing. Secondly I am going to give you my editing instructions for this round of editing, and you will need to judge how well this round of editing went according to my editing instructions. Scoring. You need to score according to the following rules.
-	(1) How well it matches the instructions
-	(2) The quality of the generated image
-	(3) The score given is between 0 - 10
-Secondly you also need to give me the reason why you think you scored this as a reverse cue word to optimise me for this editing instruction. You need to give it according to the following rules
-	(1)You can only change the original instruction, you are not allowed to change the original meaning, you can't add or delete my instruction.
-	(2) Reverse cue words cannot exceed 100 words.
-Finally you need to give me an answer in the following format:
-	{{
-	"score":Your score,
-	"prompt": your reverse prompt (you can write "None" if you think it's good enough)
-	}}
-For example, the command asks to generate a pair of leather shoes, but the shoes inside the edited diagram have no leather, you should output that the shoes have no sense of leather
-
-Remember, you only need to give me the final score and reverse prompt, no other responses, and your score can only be a specific number from 0 - 10!
-
-The image is above, my editing instruction for this round is {}
-'''
 ###################################利用反向提示词优化指令
 InsOptim_Prompt='''
 You are now an expert in optimising image editing instructions. I give you reverse cue words and image editing instructions, you need to optimise my editing instructions based on the reverse cue words and output them according to the following rules.
@@ -168,25 +108,83 @@ Instructions for this round of editing:{}
 '''
 ###################################全局打分
 GlobalScore_Prompt='''
-You are now an expert in scoring image editing. I'm going to give you two images, a pre-edit image and a post-edit image. Secondly, I will give you the editing instructions for this round of editing, and you will need to judge this round of editing according to my editing instructions to score it. You need to grade according to the following rules.
-	(1) How well it matches the instructions (i.e. no large gaps in changes not mentioned in the instructions)
-	(2) Quality of the generated image
-	(3) Score between 0-10
-Secondly, you also need to give me the reason why you scored this as a reverse cue word to optimise my editing instructions. You need to give a reason based on the following rules
-	(1) You are only allowed to change the original instruction, not the original intent, and you are not allowed to add or delete my instructions.
-	(2) The reverse cue word cannot exceed 100 words.
-Finally, you need to give me an answer in the following format:
+You are now an expert in scoring image editing. I'm going to give you two images, a pre-edit image and a post-edit image. 
+Secondly, I will give you the editing instructions for this round of editing, and you will need to judge this round of editing according to my editing instructions to score it. 
+Your task:
+    You need to grade according to the following rules.
+        (1) How well it matches the instructions (i.e. no large gaps in changes not mentioned in the instructions)
+        (2) Quality of the generated image
+        (3) Score between 0-10
+    You need to give me "negative prompt" and "positive prompt" and "area for prompt embeds mask" in edited image according to the following rules..
+        (1) The prompt  cannot exceed 100 words，The simpler the better.
+        (2) The negative prompt is what you don't want in image,so if you don't want a dog,you should output "dog" instead of "not draw a dog".
+        (3) The negative prompt can be directly used for image-edit model as negative prompt.
+        (4) The positive prompt can improve the robustness of my commands to make it work better
+        (5) The area for prompt embeds mask should be as detailed as possible so that GroundingDino+SAM can work efficiently.
+    You need to give me an answer in the following format:
 	{{
 		"score": your score,
-		"prompt": your reverse prompt (or leave "None" if you think it's good enough)
+		"negative_prompt": your negative prompt (or leave "None" if you think it's good enough),
+		"positive_prompt":your positive prompt,
+		"prompt_embeds_mask":Your given drawing area (If you don't think you need to give one, then you give "None".)
 	}}
-For example, if my instructions call for a pair of leather shoes, but the background in the edited image has also been changed, you need to answer either "the background has been changed" or "something else has been changed".
-
-Remember, you only need to give me the final score and reverse prompt, no other responses, and your score can only be a specific number from 0 - 10!
+For example:
+Example_1:
+    tasks:remove the dog
+    issue:the background also changed into grass land
+    Output:
+    {{
+        "score":5,
+        "negative_prompt": background changed ,
+        "positive_prompt": remove the dog clearly while keep other unchanged,
+        "prompt_embeds_mask":the black dog
+    }}
+Example_2:
+    tasks:add clouds in sky
+    issue:a sun also generate
+    Output:
+    {{
+        "score":3,
+        "negative_prompt":sun,
+        "positive_prompt": add clouds in sky while keep other unchanged,
+        "prompt_embeds_mask":the blue sky
+    }}
+Example_3:
+    tasks:add some flowers in background,
+    issue:The flowers added are chrysanthemums, and I want ornamental flowers.
+    Output:
+    {{
+        "score":0,
+        "negative_prompt":chrysanthemums,
+        "positive_prompt": add some flowers in background in particular ornamental flower,
+        "prompt_embeds_mask":None,
+    }}
+Example_4:
+    tasks:move man's hands over his head
+    issue:man's hands hang down
+    Output:
+    {{
+        "score":0,
+        "negative_prompt":man's hands hang down,
+        "positive_prompt":move man's hands higher over his head ,
+        "prompt_embeds_mask":None
+    }}
+Example_5:
+    tasks:add some steaks to the grill
+    issue:The original steak texture has been altered
+    Output:
+    {{
+        "score":0,
+        "negative_prompt":None,
+        "positive_prompt":add some steaks to the grill while keep other steak's shape in good appearance,
+        "prompt_embeds_mask":the grill 
+    }}
+Remember, you only need to give me the final score and negative prompt, no other responses, and your score can only be a specific number from 0 - 10!
 
 The image is as above, and my editing instruction for this round is {}
 '''
-
+################################局部打分
+LoalScore_Prompt=GlobalScore_Prompt
 ######################################评估器
 Critic_Prompt='''
 You are now an expert in image editing evaluation. I will now give you two images, a pre-edited image and a post-edited image, and will also enter all the commands I have used for this one multi-round edit, and you will need to synthesise the editing commands, compare the two images, and finally give me a rating. The scoring criteria are as follows.
@@ -291,11 +289,19 @@ def RandomImageFileName():
     total_milliseconds = int(timestamp * 1000)
     return str(total_milliseconds)+".png"
 
-client = Ark(
+client0 = Ark(
     # 此为默认路径，您可根据业务所在地域进行配置
     base_url="https://ark.cn-beijing.volces.com/api/v3",
     # 从环境变量中获取您的 API Key。此为默认方式，您可根据需要进行修改
     api_key="723cff33-3b13-420d-ab6d-267800a27475",
+    timeout=1800,
+    # 设置重试次数
+    max_retries=2,
+)
+client1 = OpenAI(
+    # 若没有配置环境变量，请用百炼API Key将下行替换为：api_key="sk-xxx",
+    api_key="sk-17cd5f2ebd6b4981b9eb6991a0ddfe3d",
+    base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
     timeout=1800,
     # 设置重试次数
     max_retries=2,

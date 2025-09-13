@@ -3,6 +3,8 @@ from transformers import AutoProcessor, AutoModelForImageTextToText
 from Tips import *
 from io import BytesIO
 import base64
+from concurrent.futures import ThreadPoolExecutor
+from functools import partial
 import json
 ##################################
 VLMProcessor=None
@@ -41,21 +43,20 @@ def encode_image(pil_image):
     pil_image.save(buffer, format="JPEG")
     encoded_string = base64.b64encode(buffer.getvalue()).decode('utf-8')
     return f"data:{'image/jpeg'};base64,{encoded_string}"
-#####################################调用
-def AnswerImage(images:list,text:str):
-    #####################
+#####################################API基础调用
+def ImageAnswer(images:list,prompt:str,client,model):
     try:
         for x in images:
             if x is None:
-                return "Nothing"
+                return None
         response = client.chat.completions.create(
         # 指定您创建的方舟推理接入点 ID，此处已帮您修改为您的推理接入点 ID
-        model="doubao-seed-1-6-vision-250815",
+        model=model,
         messages=[
             {
                 "role": "user",
                 "content": [
-                        {"type": "text", "text": f"{text}"},
+                        {"type": "text", "text": f"{prompt}"},
                 ]+
                 [ {"type": "image_url", "image_url": {"url": encode_image(image)}} for image in images]
                 ,
@@ -65,7 +66,10 @@ def AnswerImage(images:list,text:str):
         return (response.choices[0].message.content)
     except Exception as e:
         Debug("Answer_Image:",e)
-        return AnswerImage(images,text)
+        return ImageAnswer(images,prompt)
+#####################################调用
+def AnswerImage(images:list,text:str):
+    return ImageAnswer(images,text,client0,"doubao-seed-1-6-vision-250815")
     '''
     processor=VLM.processor
     model=VLM.model
@@ -94,3 +98,44 @@ def AnswerImage(images:list,text:str):
     _,res=ExtractAnswer(res)
     return res
     '''
+##########################################获取得分
+def GetImageScore(images:list,prompt:str):
+    def run(task):
+        return task(images=images,prompt=prompt)
+    tasks=[
+        partial(ImageAnswer,client=client0,model="doubao-seed-1-6-vision-250815"),#调用基础的模型
+        partial(ImageAnswer,client=client1,model="qwen-vl-max"),
+        partial(ImageAnswer,client=client1,model="qwen-vl-plus"),
+    ]
+    with ThreadPoolExecutor(max_workers=len(tasks)) as executor:
+        results = executor.map(run, tasks)
+    #解析结果
+    useful=[]
+    for res in results:
+        try:
+            score=-1
+            prompt=""
+            data = json.loads(res)
+            if "score" in data:
+                score=int(data["score"])
+            if "negative_prompt" in data:
+                negative_prompt=data["negative_prompt"]
+            if "positive_prompt" in data:
+                positive_prompt=data["positive_prompt"]
+            if "prompt_embeds_mask" in data:
+                prompt_embeds_mask=data["positive_prompt"]
+            useful.append((score,negative_prompt,positive_prompt,prompt_embeds_mask))
+        except Exception as e:
+            pass
+    #选取最小得分作为最终得分
+    total_score=0
+    target_negative_prompt=""
+    target_positive_prompt=""
+    target_prompt_embeds_mask=""
+    for score,negative_prompt,positive_prompt,prompt_embeds_mask in useful:
+        total_score=total_score+score
+        target_negative_prompt=target_negative_prompt if len(target_negative_prompt)>len(negative_prompt) else negative_prompt
+        target_positive_prompt=target_positive_prompt if len(target_positive_prompt)>len(positive_prompt) else positive_prompt
+        target_prompt_embeds_mask=target_prompt_embeds_mask if len(target_prompt_embeds_mask)>len(prompt_embeds_mask) else prompt_embeds_mask
+    #
+    return total_score/len(useful),target_negative_prompt,target_positive_prompt,target_prompt_embeds_mask
