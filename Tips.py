@@ -12,20 +12,11 @@ DEBUG=True
 DEBUG_OUTPUT=True
 DEBUG_DIR="debug/"
 DEBUG_FILE=sys.stdout if (not DEBUG or not DEBUG_OUTPUT) else open(f"{DEBUG_DIR}/debug.txt","w")
-LocalScoreThershold=7
-LocalItrThershold=2
 GlobalScoreThershold=7
-GlobalItrThershold=2
+GlobalItrThershold=3
 ClipScoreThreshold=0.21
-###############对图片的场景就行概述
-Expert1_Prompt='''
-Can you describe this image in detail?
-please divide the image from global and local aspects, and give a comprehensive description of the image content, including the background, objects, people, colors, and other details.
-Please provide the description in json.
-don't give any other information except json.
-'''
 ################对任务进行细分
-Expert2_Prompt='''
+Expert1_Prompt='''
 Let's say you're a professional and detailed image editing task subdivider, specializing in breaking down a single comprehensive image editing task (which contains multiple interrelated yet independently executable sub-tasks that can all be completed in one round of editing) into clear, specific, and actionable individual sub-editing instructions. Your core goal is to accurately identify every effective editing operation hidden in the original task, ensure no sub-task is omitted or incorrectly split, and present them in a standardized format.
 
 ### Key Operating Rules (Must Be Strictly Followed):
@@ -55,56 +46,27 @@ Your answers:
  "add a rainbow in the sky"
 ]
 
-Now I will give the image and the task,you should split my task into sub-tasks by the image:
-My task is:{}
-'''
-#############################获取改变
-Expert3_Prompt='''
-Suppose you are now an expert in editing task recognition. 
-I input the image and one editing instruction, you need to output it in my given format and follow the following rules.
-(1) You are not allowed to output anything that contradicts my given formatting
-(2)The output must fit the instruction.
-(3)It must follow the format of original object:modified object.
-For example:
-Tasks:
-	make Person's right hand in a yay pose
-Your answer:
-	[
-    	"person with a green hooded jacket",
-     	"person with a yay pose",
-    ]
-    You should ensure what you describe will work good for GrounDingDINO and CLIP for next step work in details.
-    
-(4)If the edit operation is add,you should follow the format "None:object",for delete is "object:None",for modifications is "object1:object2"
- 
 
-(5)Note that if the change is to a part of an object, then you need to output the whole object, not a part of it
-For example, 
-the change is to a person's right hand, but you should output the person, not the person's right hand, because the right hand is part of the person, 
-such as adding new clouds in the sky, you should output the sky not the clouds, because the clouds are part of the sky
-
-(6)When you generate an answer for the change brought about by the ith instruction, you have to make sure that the change brought about by the previous i-1 instructions is also taken into account, which means that if a previous instruction changed the colour of a person's clothes to red, even if he started out with the colour green, then you would only be able to say that his clothes are red because the change brought about by these instructions is persistent
-The answer you output should be such that when I use GroundingDINO to deduct this part, it is evident that the instruction has been actually executed. For example, when changing a red ring to a green one, it is obvious that you only need to provide "green ring:red ring". Another example: when moving the knife in a person's hand closer to their neck, you should output "person:person" instead of "knife" or "neck". This is because whether the knife is close to the neck is determined based on the entire person's area.
-
-The edit command is:{}
 '''
 
 ###################################利用反向提示词优化指令
 InsOptim_Prompt='''
-You are now an expert in optimising image editing instructions. I give you reverse cue words and image editing instructions, you need to optimise my editing instructions based on the reverse cue words and output them according to the following rules.
+You are now an expert in optimising image editing instructions. I give you postive prompt and image editing instructions, you need to optimise my editing instructions based on the postive prompt and output new edit prompt according to the following rules.
 	(1) You cannot change the original meaning of my instructions
 	(2) You can't add or delete on my instructions
-	(3)You can only modify the part linked to the reverse cue word
+	(3)You can only modify the part linked to the postive promp
 	(4) Your output should follow this format
 		{{
 			"new_instruction":your modified instruction
 		}}
-For example, the reverse cue is Leather shoes don't have leather, so make sure he has leather when you change my instructions.
-
+For example:
+    postive prompt:Makes man's shoes less wrinkled
+    edit prompt:change man's shoes into  leather shoes
+    output:{{
+        "new_instruction":"change man's shoes into  leather shoes with little wrinkled"
+    }}
+    
 Remember that you can't output any words that don't match this format!
-Now I will give my query:.
-Reverse prompt word:{}
-Instructions for this round of editing:{}
 '''
 ###################################全局打分
 GlobalScore_Prompt='''
@@ -121,6 +83,7 @@ Your task:
         (3) The negative prompt can be directly used for image-edit model as negative prompt.
         (4) The positive prompt can improve the robustness of my commands to make it work better
         (5) The area for prompt embeds mask should be as detailed as possible so that GroundingDino+SAM can work efficiently.
+        (6) For negative prompt,you need to tell where it is wrong instead such as "red shirt" or "thick beef"
     You need to give me an answer in the following format:
 	{{
 		"score": your score,
@@ -171,20 +134,17 @@ Example_4:
     }}
 Example_5:
     tasks:add some steaks to the grill
-    issue:The original steak texture has been altered
+    issue:The original steak texture has been altered and the added steaks' texture is much red than original
     Output:
     {{
         "score":0,
-        "negative_prompt":None,
+        "negative_prompt":much red steak,
         "positive_prompt":add some steaks to the grill while keep other steak's shape in good appearance,
         "prompt_embeds_mask":the grill 
     }}
 Remember, you only need to give me the final score and negative prompt, no other responses, and your score can only be a specific number from 0 - 10!
-
-The image is as above, and my editing instruction for this round is {}
+Remember,You don't need to give me any explanations in any other place such as after prompt or score
 '''
-################################局部打分
-LoalScore_Prompt=GlobalScore_Prompt
 ######################################评估器
 Critic_Prompt='''
 You are now an expert in image editing evaluation. I will now give you two images, a pre-edited image and a post-edited image, and will also enter all the commands I have used for this one multi-round edit, and you will need to synthesise the editing commands, compare the two images, and finally give me a rating. The scoring criteria are as follows.
@@ -198,8 +158,6 @@ Your answer should be in the following format
 		"score":your score
 	}}
 Don't reply with any words that don't match the above format!
-Now I am giving my images, before editing and after editing, as shown above.
-All the editing commands are as follows {}
 '''
 ################################指令优化
 EDIT_SYSTEM_PROMPT = '''
@@ -261,9 +219,8 @@ Please strictly follow the rewriting rules below:
    "Rewritten": "..."
 }}
 
-User Input: {}
 
-Rewritten Prompt:
+
 '''
 ################################调试函数
 def Debug(*msg):
