@@ -29,11 +29,10 @@ pipeline = QwenImageEditPipeline.from_pretrained(
 pipeline.set_progress_bar_config(disable=None)
 ###############################优化指令
 def polish_edit_prompt(img,prompt):
-    prompt = EDIT_SYSTEM_PROMPT.format(prompt)
     success=False
     while not success:
         try:
-            result = AnswerImage([img],prompt)
+            result = AnswerImage([img],EDIT_SYSTEM_PROMPT,f"User Input: {prompt}")
             if isinstance(result, str):
                 result = result.replace('```json','')
                 result = result.replace('```','')
@@ -93,6 +92,15 @@ def EditImage(image,prompt:str,negative_prompt_list=None,prompt_mask=None):
     if negative_prompt_list:
         for x in negative_prompt_list:
             negative_prompt=negative_prompt+x+"."
+    if prompt_mask!=None:
+        # 转为 NumPy 数组，并标准化到 0~1
+        prompt_mask=prompt_mask.convert("L")
+        mask_np = np.array(prompt_mask)
+        mask_np = np.where(mask_np>0, 255, 0).astype(np.uint8)
+        mask_np = mask_np.astype(np.float32) / 255.0
+        # 转换为 torch.Tensor (1, 1, H, W) —— 模型要求的 batch size
+        prompt_mask = torch.tensor(mask_np).unsqueeze(0).unsqueeze(0).to("cuda")
+        
     res=ImageEditApi(image,prompt,negative_prompt,prompt_mask)
     return res
 
@@ -102,15 +110,9 @@ def EditImage(image,prompt:str,negative_prompt_list=None,prompt_mask=None):
 ################################测试
 if __name__=="__main__":
     while True:
-        mask_image = Image.open("ori.png").convert("L")
-        # 转为 NumPy 数组，并标准化到 0~1
-        mask_np = np.array(mask_image).astype(np.float32) / 255.0
-        # 转换为 torch.Tensor (1, 1, H, W) —— 模型要求的 batch size
-        prompt_mask = torch.tensor(mask_np).unsqueeze(0).unsqueeze(0).to("cuda")
-        
         path=input("path:")
         image=Image.open(path).convert("RGB")
         prompt=input("prompt:")
         neg_prompt=input("neg_prompt:")
-        res=EditImage(image,prompt,[neg_prompt],prompt_mask)
-        res.save("output.png")
+        res=EditImage(image,prompt,[neg_prompt],None)
+        res.save(f"debug/{RandomImageFileName()}")

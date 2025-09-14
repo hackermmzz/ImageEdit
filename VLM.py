@@ -44,7 +44,7 @@ def encode_image(pil_image):
     encoded_string = base64.b64encode(buffer.getvalue()).decode('utf-8')
     return f"data:{'image/jpeg'};base64,{encoded_string}"
 #####################################API基础调用
-def ImageAnswer(images:list,prompt:str,client,model):
+def ImageAnswer(images:list,role_tip:str,question:str,client,model):
     try:
         for x in images:
             if x is None:
@@ -54,9 +54,15 @@ def ImageAnswer(images:list,prompt:str,client,model):
         model=model,
         messages=[
             {
+                "role":"system",
+                "content": [
+                        {"type": "text", "text": f"{role_tip}"},
+                ]
+            },
+            {
                 "role": "user",
                 "content": [
-                        {"type": "text", "text": f"{prompt}"},
+                        {"type": "text", "text": f"{question}"},
                 ]+
                 [ {"type": "image_url", "image_url": {"url": encode_image(image)}} for image in images]
                 ,
@@ -66,10 +72,10 @@ def ImageAnswer(images:list,prompt:str,client,model):
         return (response.choices[0].message.content)
     except Exception as e:
         Debug("Answer_Image:",e)
-        return ImageAnswer(images,prompt)
+        return ImageAnswer(images,role_tip,question)
 #####################################调用
-def AnswerImage(images:list,text:str):
-    return ImageAnswer(images,text,client0,"doubao-seed-1-6-vision-250815")
+def AnswerImage(images:list,role_tip:str,question:str):
+    return ImageAnswer(images,role_tip,question,client0,"doubao-seed-1-6-vision-250815")
     '''
     processor=VLM.processor
     model=VLM.model
@@ -99,9 +105,15 @@ def AnswerImage(images:list,text:str):
     return res
     '''
 ##########################################获取得分
-def GetImageScore(images:list,prompt:str):
+def GetImageScore(images:list,role_tip:str,question:str):
     def run(task):
-        return task(images=images,prompt=prompt)
+        try:
+            return task(images=images,
+                        role_tip=role_tip,
+                        question=question
+                        )
+        except Exception as e:
+            return None
     tasks=[
         partial(ImageAnswer,client=client0,model="doubao-seed-1-6-vision-250815"),#调用基础的模型
         partial(ImageAnswer,client=client1,model="qwen-vl-max"),
@@ -123,7 +135,7 @@ def GetImageScore(images:list,prompt:str):
             if "positive_prompt" in data:
                 positive_prompt=data["positive_prompt"]
             if "prompt_embeds_mask" in data:
-                prompt_embeds_mask=data["positive_prompt"]
+                prompt_embeds_mask=data["prompt_embeds_mask"]
             useful.append((score,negative_prompt,positive_prompt,prompt_embeds_mask))
         except Exception as e:
             pass

@@ -26,56 +26,51 @@ def ProcessImageEdit(img_path:str,prompt:str,dir="./"):
     ##########################################第二层：任务链
     input_img=ori_image
     i=0
-    local_itr_cnt=0
     global_itr_cnt=0
     neg_prompts=[]
+    edited_images=[]
     loop=False
     task=None
-    change=None
     mask=None
     while i <len(tasks):
         epoch=i+1
-        Debug(f"第{epoch}次指令编辑开始!")
+        global_itr_cnt+=1
+        Debug(f"第{epoch}次指令编辑,第{global_itr_cnt}次尝试开始!")
         #任务优化
         if not loop:
             Debug("正在进行任务优化...")
             task=polish_edit_prompt(input_img,tasks[i])
             Debug(f"优化指令为:{task}")
-        #获取执行指令后的图像改变信息
-        if not loop:
-            Debug("正在获取图像信息改变...")
-            change=GetChange(input_img,task)
-            Debug("图像改变信息:",change)
         ###########编辑图像
         Debug("正在进行图像编辑...")
-        output_img=EditImage(input_img,task,neg_prompts)
+        output_img=EditImage(input_img,task,neg_prompts,mask)
         #将output和input缩放到同一个尺寸
         output_img=output_img.resize(input_img.size)
         Debug("图像编辑完成!")
         DebugSaveImage(output_img,f"edited_image_{epoch}_"+RandomImageFileName(),dir=dir)
         ###########负反馈
-        res=NegativeFeedback(task,change,input_img,output_img,epoch,local_itr_cnt<LocalItrThershold,global_itr_cnt<GlobalItrThershold,dir)
-        local_score=res[0]
-        global_score=res[1]
-        neg_prompt=res[2]
-        pos_prompt=res[3]
-        if local_score<LocalScoreThershold:
-            neg_prompts.append(neg_prompt)
-            local_itr_cnt+=1
-            loop=True
-            continue
-        elif global_score<GlobalScoreThershold:
+        res=NegativeFeedback(task,input_img,output_img,global_itr_cnt,dir)
+        global_score=res[0]
+        neg_prompt=res[1]
+        pos_prompt=res[2]
+        mask=res[3]
+        edited_images.append((global_score,output_img))
+        if global_itr_cnt<GlobalItrThershold and global_score<GlobalScoreThershold:
+            Debug("正在优化指令...")
+            task=OptmEditInstruction(pos_prompt,task)
+            Debug(f"优化完成!指令为\"{task}\"")
             neg_prompts.append(neg_prompt)
             global_itr_cnt+=1
             loop=True
             continue
         #下一个任务
         i+=1
-        local_itr_cnt=0
         global_itr_cnt=0
-        input_img=output_img
+        input_img=max(edited_images, key=lambda x: x[0])[1]
         neg_prompts=[]
+        edited_images=[]
         loop=False
+        DebugSaveImage(input_img,f"epoch{epoch}_edited_image.png",dir=dir)
     ###################################第三层：打分
     Debug("图片评分中....")
     score=GetCriticScore(ori_image,input_img,task)

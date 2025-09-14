@@ -22,7 +22,7 @@ def LoadLLM():
             trust_remote_code=True
         ).to(DEVICE).eval()
 #########################################调用
-def AnswerText(question:str):
+def AnswerText(role_tip:str,question:str):
     ##########################调用豆包大模型
     try:
         # Non-streaming:
@@ -30,13 +30,14 @@ def AnswerText(question:str):
             # 指定您创建的方舟推理接入点 ID，此处已帮您修改为您的推理接入点 ID
             model="doubao-1-5-pro-256k-250115",
             messages=[
+                {"role":"system","content":f"{role_tip}"},
                 {"role": "user", "content": f"{question}"},
             ],
         )
         return completion.choices[0].message.content
     except Exception as e:
         Debug(e)
-        return AnswerText(question)
+        return AnswerText(role_tip,question)
     ############################
         processor=LLM.processor
         model=LLM.model
