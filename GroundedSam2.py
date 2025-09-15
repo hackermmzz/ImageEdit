@@ -139,6 +139,21 @@ def GroundingDINO_SAM2(image,text_prompt:str):
         except Exception as e:
             return EnsureGet(text_threshold-0.05,box_threshold-0.05)
     return EnsureGet(0.8,0.8)
+#######################################把mask图变成纯白
+def alpha_to_white_black_mask(image: Image.Image) -> Image.Image:
+    width, height = image.size
+    new_img = Image.new('RGB', (width, height), color='black')
+    pixels = image.load()
+    new_pixels = new_img.load()
+    for y in range(height):
+        for x in range(width):
+            r, g, b = pixels[x, y]
+            if r != 0 or g!=0 or b!=0:
+                new_pixels[x, y] = (255, 255, 255)  # 纯白
+            else:
+                new_pixels[x, y] = (0, 0, 0)        # 纯黑
+    return new_img
+#######################################
 if __name__=="__main__":
     while True:
         path=input("path:")
@@ -147,4 +162,5 @@ if __name__=="__main__":
         print(score)
         mask.save('debug/mask.png')
         box.save("debug/box.png")
+        ori_mask=alpha_to_white_black_mask(ori_mask)
         ori_mask.save("debug/ori.png")
