@@ -218,10 +218,16 @@ Please strictly follow the rewriting rules below:
 {{
    "Rewritten": "..."
 }}
-
-
-
 '''
+################################for vlm to get area for inpainting
+GetMaskArea_Prompt='''
+        You are now an image object bounding box detection expert. I will provide you with an image and a prompt of the image-edit instruction, and you need to give the answer in accordance with the following rules:
+        (1) If there are multiple target objects or area, return multiple results; if there is only one, return one result;.
+        (2) For each result, provide a four-tuple (x0, y0, x1, y1), where each element is a floating-point number between 0 and 1, representing the relative position of the target from its top-left corner to bottom-right corner in the image.
+        (3) The final result should follow the following format: [(ans0), (ans1), ...]
+        (4) Each answer may represent an area as a mask for inpainting or an area bounding the target object.
+        Remember: Only need to provide the answer, without any additional responses.
+    '''
 ################################调试函数
 def Debug(*msg):
 	if not DEBUG:

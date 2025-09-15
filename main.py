@@ -49,11 +49,11 @@ def ProcessImageEdit(img_path:str,prompt:str,dir="./"):
         Debug("图像编辑完成!")
         DebugSaveImage(output_img,f"edited_image_{epoch}_"+RandomImageFileName(),dir=dir)
         ###########负反馈
-        res=NegativeFeedback(task,input_img,output_img,global_itr_cnt,dir)
-        global_score=res[0]
-        neg_prompt=res[1]
-        pos_prompt=res[2]
-        mask=res[3]
+        inpainting_img=NegativeFeedback(task,input_img,output_img,global_itr_cnt,dir)
+        global_score=inpainting_img[0]
+        neg_prompt=inpainting_img[1]
+        pos_prompt=inpainting_img[2]
+        mask=inpainting_img[3]
         edited_images.append((global_score,output_img))
         if global_itr_cnt<GlobalItrThershold and global_score<GlobalScoreThershold:
             Debug("正在优化指令...")
@@ -63,6 +63,15 @@ def ProcessImageEdit(img_path:str,prompt:str,dir="./"):
             global_itr_cnt+=1
             loop=True
             continue
+        else:
+            #inpainting
+            Debug("inpainting......")
+            inpainting_img=InpaintingArea(input_img,task)
+            DebugSaveImage(inpainting_img,f"inpainting_{epoch}_{RandomImageFileName()}",dir)
+            Debug("全局打分中......")
+            score=GetImageGlobalScore(input_img,inpainting_img,task)[0]
+            Debug("全局打分:",score)
+            edited_images.append((score,inpainting_img))
         #下一个任务
         i+=1
         global_itr_cnt=0
