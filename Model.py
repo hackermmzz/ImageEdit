@@ -15,7 +15,8 @@ def GetTask(image,description:str):
         return GetTask(image,Expert1_Prompt,description)
 #获取编辑后的全局打分
 def GetImageGlobalScore(source,target,description:str):
-    return GetImageScore([source,target],GlobalScore_Prompt,"The image is as above, and my editing instruction for this round is {}".format(description))
+    res=GetImageScore([source,target],GlobalScore_Prompt,"The image is as above, and my editing instruction for this round is {}".format(description))
+    return res[0],SummaryPrompt(res[1]),SummaryPrompt(res[2]),res[3]
 #艺术家打分
 def GetCriticScore(source,target,instructions:list):
     instruction=""
@@ -41,8 +42,18 @@ def OptmEditInstruction(prompt:str,instruction:str):
     except Exception as e:
         Debug("OptmEditInstruction_Err:",res,e)
         return ""
-
-
+#对反馈进行总结
+def SummaryPrompt(prompts:list)->str:
+    question=f'''
+        Now I give my prompts:{str(prompts)}
+    '''
+    res=AnswerText(PromptFeedbackSummary_Prompt,question)
+    try:
+        data=json.loads(res)
+        return data["prompt"]
+    except Exception as e:
+        Debug("SummaryPrompt:",e,res)
+        return SummaryPrompt(prompts)
 ##########################################
 if __name__=="__main__":
     x=input(":")

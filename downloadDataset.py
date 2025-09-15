@@ -55,7 +55,7 @@ def DivideData(data,path,debug=False):
         with open(sub_folder+"/ins.txt",mode="w",encoding="utf-8") as f:
             f.write(ele["description"])
 def Init():
-    db_path="datasets/"
+    db_path="new_datasets/"
     url="leigangqu/VINCIE-10M"
     count=4096 
     

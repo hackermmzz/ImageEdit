@@ -25,10 +25,10 @@ def LoadLLM():
 def AnswerText(role_tip:str,question:str):
     ##########################调用豆包大模型
     try:
-        # Non-streaming:
-        completion = client0.chat.completions.create(
+        client=client1()
+        completion = client.chat.completions.create(
             # 指定您创建的方舟推理接入点 ID，此处已帮您修改为您的推理接入点 ID
-            model="doubao-1-5-pro-256k-250115",
+            model="deepseek-r1",
             messages=[
                 {"role":"system","content":f"{role_tip}"},
                 {"role": "user", "content": f"{question}"},

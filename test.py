@@ -2,10 +2,7 @@ import torch
 from diffusers import FluxKontextPipeline
 from diffusers.utils import load_image
 from PIL import Image
-import numpy as np
 import torch
-from diffusers import StableDiffusion3Pipeline
-from diffusers import DiffusionPipeline
 from VLM import *
 from diffusers import AutoPipelineForInpainting
 from diffusers.utils import load_image

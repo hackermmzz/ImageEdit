@@ -4,10 +4,11 @@ from torch import cuda
 from volcenginesdkarkruntime import Ark
 import os
 from openai import OpenAI
+from functools import partial
 ###############全局配置
 os.system("rm -rf debug/*")
 DEVICE = "cuda" if cuda.is_available() else "cpu"
-TEST_MODE=True	#测试模式将验证测试机
+TEST_MODE=False	#测试模式将验证测试机
 DEBUG=True
 DEBUG_OUTPUT=True
 DEBUG_DIR="debug/"
@@ -28,7 +29,7 @@ Let's say you're a professional and detailed image editing task subdivider, spec
    - "Make the child hold a teddy bear."
    - "Remove the potted plant on the table."
    - "Replace the wall painting with a landscape photo."
-
+5. **You need to output the type of editing instructions after fine segmentation, including one of the following operations: add, remove,replace,modify.
 ### Format Requirements (Non-Negotiable):
 - You must only output the subdivided sub-tasks in an array [] format. Each sub-task is a separate string enclosed in double quotes, and commas are used to separate different sub-task strings.
 - Do not add any additional content outside the array (such as explanations, prompts, notes, or greetings). Even if the original task has only one sub-task, it must still be placed in the array.
@@ -38,15 +39,13 @@ Example:
 Question: change the colour of the teacup to black and have the person's right hand in a yay pose, change the setting to a green meadow, add a teapot, delete the clouds in the sky and replace them with rainbows
 Your answers:
 [
- "The colour of the teacup is changed to black.",
- "The person's right hand makes a yay pose.",
- "The environment is changed to a green meadow",
- "Add a teapot",
- "delete the clouds in the sky",
- "add a rainbow in the sky"
+ ["The colour of the teacup is changed to black.","modify"],
+ ["The person's right hand makes a yay pose.","modify"],
+ ["The environment is changed to a green meadow","modify"],
+ ["Add a teapot","add"],
+ ["delete the clouds in the sky","remove"],
+ ["add a rainbow in the sky","add"]
 ]
-
-
 '''
 
 ###################################利用反向提示词优化指令
@@ -56,15 +55,15 @@ You are now an expert in optimising image editing instructions. I give you posti
 	(2) You can't add or delete on my instructions
 	(3)You can only modify the part linked to the postive promp
 	(4) Your output should follow this format
-		{{
+		{
 			"new_instruction":your modified instruction
-		}}
+		}
 For example:
     postive prompt:Makes man's shoes less wrinkled
     edit prompt:change man's shoes into  leather shoes
-    output:{{
+    output:{
         "new_instruction":"change man's shoes into  leather shoes with little wrinkled"
-    }}
+    }
     
 Remember that you can't output any words that don't match this format!
 '''
@@ -85,63 +84,63 @@ Your task:
         (5) The area for prompt embeds mask should be as detailed as possible so that GroundingDino+SAM can work efficiently.
         (6) For negative prompt,you need to tell where it is wrong instead such as "red shirt" or "thick beef"
     You need to give me an answer in the following format:
-	{{
+	{
 		"score": your score,
 		"negative_prompt": your negative prompt (or leave "None" if you think it's good enough),
 		"positive_prompt":your positive prompt,
 		"prompt_embeds_mask":Your given drawing area (If you don't think you need to give one, then you give "None".)
-	}}
+	}
 For example:
 Example_1:
     tasks:remove the dog
     issue:the background also changed into grass land
     Output:
-    {{
+    {
         "score":5,
         "negative_prompt": background changed ,
         "positive_prompt": remove the dog clearly while keep other unchanged,
         "prompt_embeds_mask":the black dog
-    }}
+    }
 Example_2:
     tasks:add clouds in sky
     issue:a sun also generate
     Output:
-    {{
+    {
         "score":3,
         "negative_prompt":sun,
         "positive_prompt": add clouds in sky while keep other unchanged,
         "prompt_embeds_mask":the blue sky
-    }}
+    }
 Example_3:
     tasks:add some flowers in background,
     issue:The flowers added are chrysanthemums, and I want ornamental flowers.
     Output:
-    {{
+    {
         "score":0,
         "negative_prompt":chrysanthemums,
         "positive_prompt": add some flowers in background in particular ornamental flower,
         "prompt_embeds_mask":None,
-    }}
+    }
 Example_4:
     tasks:move man's hands over his head
     issue:man's hands hang down
     Output:
-    {{
+    {
         "score":0,
         "negative_prompt":man's hands hang down,
         "positive_prompt":move man's hands higher over his head ,
         "prompt_embeds_mask":None
-    }}
+    }
 Example_5:
     tasks:add some steaks to the grill
     issue:The original steak texture has been altered and the added steaks' texture is much red than original
     Output:
-    {{
+    {
         "score":0,
         "negative_prompt":much red steak,
         "positive_prompt":add some steaks to the grill while keep other steak's shape in good appearance,
         "prompt_embeds_mask":the grill 
-    }}
+    }
 Remember, you only need to give me the final score and negative prompt, no other responses, and your score can only be a specific number from 0 - 10!
 Remember,You don't need to give me any explanations in any other place such as after prompt or score
 '''
@@ -154,10 +153,28 @@ You are now an expert in image editing evaluation. I will now give you two image
 	(4) The reasonableness of the content of the generated images
 Your score must be within 1-10.
 Your answer should be in the following format
-	{{
+	{
 		"score":your score
-	}}
+	}
 Don't reply with any words that don't match the above format!
+'''
+################################反馈总结提示
+PromptFeedbackSummary_Prompt='''
+You are now an expert image editor and are good at summarising the feedback I give on several image edits. I'm going to give you an array of input feedback and then you need to summarise that feedback according to the following rules.
+1. Where the feedback is mentioned, the summary you give must be fully inclusive
+2. You are not allowed to add anything that is not mentioned in the other feedbacks or delete anything that is mentioned in the feedbacks.
+3. The answer you give should be short and concise at the core.
+4. You must follow the following json format output
+    {
+        "prompt":your answer
+    }
+Example.
+    [don't make shoes too large,shoes's colour must be red]
+Your answer.
+    {
+        "prompt": "shoes's must be red and not too large"
+    }
+Remember to answer only in the above format and do not give any sentence other than the specified answer!
 '''
 ################################指令优化
 EDIT_SYSTEM_PROMPT = '''
@@ -215,18 +232,25 @@ Please strictly follow the rewriting rules below:
 
 # Output Format Example
 ```json
-{{
+{
    "Rewritten": "..."
-}}
+}
 '''
-################################for vlm to get area for inpainting
+################################给inpainting生成区域
 GetMaskArea_Prompt='''
-        You are now an image object bounding box detection expert. I will provide you with an image and a prompt of the image-edit instruction, and you need to give the answer in accordance with the following rules:
-        (1) If there are multiple target objects or area, return multiple results; if there is only one, return one result;.
-        (2) For each result, provide a four-tuple (x0, y0, x1, y1), where each element is a floating-point number between 0 and 1, representing the relative position of the target from its top-left corner to bottom-right corner in the image.
-        (3) The final result should follow the following format: [(ans0), (ans1), ...]
-        (4) Each answer may represent an area as a mask for inpainting or an area bounding the target object.
-        Remember: Only need to provide the answer, without any additional responses.
+You are now an image object bounding box detection expert. I will provide you with an image and a prompt of the image-edit instruction, and you need to give the answer in accordance with the following rules:
+    (1) If there are multiple target objects or area, return multiple results; if there is only one, return one result;.
+    (2) For each result, provide a four-tuple (x0, y0, x1, y1), where each element is a floating-point number between 0 and 1, representing the relative position of the target from its top-left corner to bottom-right corner in the image.
+    (3) The final result should follow the following format: [(ans0), (ans1), ...]
+    (4) Each answer may represent an area as a mask for inpainting or an area bounding the target object.
+Example:
+    task:add some steaks on grill like others
+    you answer:[(0.1,0.2,0.3,0.4),(0.2,0.2,0.3,0.3),(0.1,0.1,0.2,0.2)]  (These areas is empty and good enough to add one steak on it)
+Attention:
+    (1)You should ensure the area you give as mask for inpainting will work good for the instruction
+    (2)If the instruction is the operation of add object ,the area must match the realistic dimensions of the object.
+    
+Remember: Only need to provide the answer, without any additional responses.
     '''
 ################################调试函数
 def Debug(*msg):
@@ -252,20 +276,24 @@ def RandomImageFileName():
     total_milliseconds = int(timestamp * 1000)
     return str(total_milliseconds)+".png"
 
-client0 = Ark(
-    # 此为默认路径，您可根据业务所在地域进行配置
-    base_url="https://ark.cn-beijing.volces.com/api/v3",
-    # 从环境变量中获取您的 API Key。此为默认方式，您可根据需要进行修改
-    api_key="723cff33-3b13-420d-ab6d-267800a27475",
-    timeout=1800,
-    # 设置重试次数
-    max_retries=2,
-)
-client1 = OpenAI(
-    # 若没有配置环境变量，请用百炼API Key将下行替换为：api_key="sk-xxx",
-    api_key="sk-17cd5f2ebd6b4981b9eb6991a0ddfe3d",
-    base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
-    timeout=1800,
-    # 设置重试次数
-    max_retries=2,
-)
+def client0():
+    client=Ark(
+        # 此为默认路径，您可根据业务所在地域进行配置
+        base_url="https://ark.cn-beijing.volces.com/api/v3",
+        # 从环境变量中获取您的 API Key。此为默认方式，您可根据需要进行修改
+        api_key="723cff33-3b13-420d-ab6d-267800a27475",
+        timeout=1800,
+        # 设置重试次数
+        max_retries=2,
+    )
+    return client
+def client1():
+    client= OpenAI(
+        # 若没有配置环境变量，请用百炼API Key将下行替换为：api_key="sk-xxx",
+        api_key="sk-17cd5f2ebd6b4981b9eb6991a0ddfe3d",
+        base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+        timeout=1800,
+        # 设置重试次数
+        max_retries=2,
+    )
+    return client
