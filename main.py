@@ -39,7 +39,7 @@ def ProcessImageEdit(img_path:str,prompt:str,dir="./"):
         #任务优化
         if not loop:
             Debug("正在进行任务优化...")
-            task=polish_edit_prompt(input_img,tasks[i])
+            task=polish_edit_prompt(input_img,tasks[i][0])
             Debug(f"优化指令为:{task}")
         ###########编辑图像
         Debug("正在进行图像编辑...")
@@ -55,23 +55,23 @@ def ProcessImageEdit(img_path:str,prompt:str,dir="./"):
         pos_prompt=inpainting_img[2]
         mask=inpainting_img[3]
         edited_images.append((global_score,output_img))
-        if global_itr_cnt<GlobalItrThershold and global_score<GlobalScoreThershold:
-            Debug("正在优化指令...")
-            task=OptmEditInstruction(pos_prompt,task)
-            Debug(f"优化完成!指令为\"{task}\"")
-            neg_prompts.append(neg_prompt)
-            global_itr_cnt+=1
-            loop=True
-            continue
-        else:
-            #inpainting
-            Debug("inpainting......")
-            inpainting_img=InpaintingArea(input_img,task)
-            DebugSaveImage(inpainting_img,f"inpainting_{epoch}_{RandomImageFileName()}",dir)
-            Debug("全局打分中......")
-            score=GetImageGlobalScore(input_img,inpainting_img,task)[0]
-            Debug("全局打分:",score)
-            edited_images.append((score,inpainting_img))
+        if  global_score<GlobalScoreThershold:
+            if global_itr_cnt<GlobalItrThershold:
+                Debug("正在优化指令...")
+                task=OptmEditInstruction(pos_prompt,task)
+                Debug(f"优化完成!指令为\"{task}\"")
+                neg_prompts.append(neg_prompt)
+                loop=True
+                continue
+            #否则对区域重新绘制
+            else:
+                Debug("inpainting......")
+                inpainting_img=InpaintingArea(input_img,task)
+                DebugSaveImage(inpainting_img,f"inpainting_{epoch}_{RandomImageFileName()}",dir)
+                Debug("全局打分中......")
+                score=GetImageGlobalScore(input_img,inpainting_img,task)[0]
+                Debug("全局打分:",score)
+                edited_images.append((score,inpainting_img))
         #下一个任务
         i+=1
         global_itr_cnt=0

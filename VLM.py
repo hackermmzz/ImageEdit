@@ -49,6 +49,7 @@ def ImageAnswer(images:list,role_tip:str,question:str,client,model):
         for x in images:
             if x is None:
                 return None
+        client=client()
         response = client.chat.completions.create(
         # 指定您创建的方舟推理接入点 ID，此处已帮您修改为您的推理接入点 ID
         model=model,
@@ -113,11 +114,12 @@ def GetImageScore(images:list,role_tip:str,question:str):
                         question=question
                         )
         except Exception as e:
+            Debug("GetImageScore:",e)
             return None
     tasks=[
         partial(ImageAnswer,client=client0,model="doubao-seed-1-6-vision-250815"),#调用基础的模型
         partial(ImageAnswer,client=client1,model="qwen-vl-max"),
-        partial(ImageAnswer,client=client1,model="qwen-vl-plus"),
+        partial(ImageAnswer,client=client1,model="qwen-vl-plus-latest"),
     ]
     with ThreadPoolExecutor(max_workers=len(tasks)) as executor:
         results = executor.map(run, tasks)
@@ -141,13 +143,13 @@ def GetImageScore(images:list,role_tip:str,question:str):
             pass
     #选取最小得分作为最终得分
     total_score=0
-    target_negative_prompt=""
-    target_positive_prompt=""
+    target_negative_prompt=[]
+    target_positive_prompt=[]
     target_prompt_embeds_mask=""
     for score,negative_prompt,positive_prompt,prompt_embeds_mask in useful:
         total_score=total_score+score
-        target_negative_prompt=target_negative_prompt if len(target_negative_prompt)>len(negative_prompt) else negative_prompt
-        target_positive_prompt=target_positive_prompt if len(target_positive_prompt)>len(positive_prompt) else positive_prompt
+        target_negative_prompt.append(negative_prompt)
+        target_positive_prompt.append(positive_prompt)
         target_prompt_embeds_mask=target_prompt_embeds_mask if len(target_prompt_embeds_mask)>len(prompt_embeds_mask) else prompt_embeds_mask
     #
     return total_score/len(useful),target_negative_prompt,target_positive_prompt,target_prompt_embeds_mask

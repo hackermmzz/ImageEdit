@@ -34,9 +34,11 @@ def GenerateMask(image: Image.Image,boxes) -> Image.Image:
 def GetInpaintingBox(image:Image.Image,question:str) ->list:
     try:    
         res=AnswerImage([image],GetMaskArea_Prompt,question)
-        print(res)
-        res=[float(s.strip()) for s in res.strip("[()]").split(",")]
-        
+        rr=""
+        for x in res:
+            if x not in "[]()":
+                rr=rr+x
+        res=[float(s.strip()) for s in rr.split(",")]
         w,h=image.size
         ret=[]
         tmp=[]
@@ -55,13 +57,26 @@ def GetInpaintingBox(image:Image.Image,question:str) ->list:
                 ret.append(tmp)
                 tmp=[]
     except Exception as e:
-        Debug("GetInpaintingBox:",e)
+        Debug("GetInpaintingBox:",e,res)
         return GetInpaintingBox(image,question)
     return ret
+from PIL import ImageDraw
+def draw_red_box(image, box, width=3):
+    # 拷贝原图避免修改原图像
+    image_copy = image.copy()
+    
+    # 创建可绘制对象
+    draw = ImageDraw.Draw(image_copy)
+    # 画红框
+    draw.rectangle(box, outline="red", width=width)
+    return image_copy
 #inpainiting
 def InpaintingArea(image:Image,task:str):
     #get box
     boxes=GetInpaintingBox(image,f"Now I will give you the image-edit instruction:{task}.You should give me the fittable answer as a mask for inpainting")
+    Debug("the box is:",boxes)
+    res=draw_red_box(image,boxes[0])
+    res.save("output.jpg")
     #get mask
     mask=GenerateMask(image,boxes)
     #inpainting
