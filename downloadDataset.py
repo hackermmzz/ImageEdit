@@ -4,10 +4,10 @@ from datasets import load_from_disk,load_dataset,Dataset
 from PIL import Image
 import json
 ######################################下载数据集
-def DownloadDataSet(save_path,count=4096):
+def DownloadDataSet(save_path,url,count):
     if os.path.exists(save_path):
         return
-    ds = load_dataset("leigangqu/VINCIE-10M",streaming=True,split="train")
+    ds = load_dataset(url,streaming=True,split="train")
     ds=list(ds.take(count))
     ds=Dataset.from_list(ds)
     ds.save_to_disk(save_path)
@@ -17,7 +17,6 @@ def LoadData(path):
     data=[]
     for item in dataset:
         try:
-            total_frames = len(item['image'])
             total_frames = len(item['image'])
             split_point = total_frames // 2
             #获取两个图像
@@ -57,9 +56,21 @@ def DivideData(data,path,debug=False):
             f.write(ele["description"])
 def Init():
     db_path="datasets/"
+    url="leigangqu/VINCIE-10M"
+    count=4096 
+    
+    db_path2="datasets2/"
+    url2="pvduy/vinci_edit_sfw"
+    count2=100
     #下载数据集
-    DownloadDataSet(db_path)
+    DownloadDataSet(db_path,url,count)
     #加载数据
     data=LoadData(db_path)
     #拆解成数据包
     DivideData(data,"data")
+
+
+
+#################################
+if __name__=="__main__":
+    Init()

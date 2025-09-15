@@ -55,8 +55,6 @@ def ImageEditApi(image,prompt:str,neg_prompt, prompt_mask=None):
         "true_cfg_scale": 4,
         "negative_prompt": neg_prompt,
         "num_inference_steps": 50,
-        "width":image.size[0],
-        "height":image.size[1],
         "guidance_scale":6,
         "prompt_embeds_mask":prompt_mask
     }
