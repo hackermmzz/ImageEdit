@@ -63,7 +63,7 @@ def ProcessImageEdit(img_path:str,prompt:str,dir="./"):
                 neg_prompts.append(neg_prompt)
                 loop=True
                 continue
-            #否则对区域重新绘制
+            #否则对区域重新绘制以及调用图像编辑API接口
             else:
                 Debug("inpainting......")
                 inpainting_img=InpaintingArea(input_img,task)
@@ -72,6 +72,9 @@ def ProcessImageEdit(img_path:str,prompt:str,dir="./"):
                 score=GetImageGlobalScore(input_img,inpainting_img,task)[0]
                 Debug("全局打分:",score)
                 edited_images.append((score,inpainting_img))
+                #调用API接口
+                
+                
         #下一个任务
         i+=1
         global_itr_cnt=0
