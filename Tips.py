@@ -5,10 +5,13 @@ from volcenginesdkarkruntime import Ark
 import os
 from openai import OpenAI
 from functools import partial
+from io import BytesIO
+import base64
+from PIL import Image
 ###############全局配置
 os.system("rm -rf debug/*")
 DEVICE = "cuda" if cuda.is_available() else "cpu"
-TEST_MODE=False	#测试模式将验证测试机
+TEST_MODE=True	#测试模式将验证测试机
 DEBUG=True
 DEBUG_OUTPUT=True
 DEBUG_DIR="debug/"
@@ -243,13 +246,16 @@ You are now an image object bounding box detection expert. I will provide you wi
     (2) For each result, provide a four-tuple (x0, y0, x1, y1), where each element is a floating-point number between 0 and 1, representing the relative position of the target from its top-left corner to bottom-right corner in the image.
     (3) The final result should follow the following format: [(ans0), (ans1), ...]
     (4) Each answer may represent an area as a mask for inpainting or an area bounding the target object.
+
 Example:
     task:add some steaks on grill like others
-    you answer:[(0.1,0.2,0.3,0.4),(0.2,0.2,0.3,0.3),(0.1,0.1,0.2,0.2)]  (These areas is empty and good enough to add one steak on it)
+    your answer:[(0.1,0.2,0.3,0.4),(0.2,0.2,0.3,0.3),(0.1,0.1,0.2,0.2)]  (These areas is empty and good enough to add one steak on it)
 Attention:
     (1)You should ensure the area you give as mask for inpainting will work good for the instruction
     (2)If the instruction is the operation of add object ,the area must match the realistic dimensions of the object.
-    
+Example:
+    task:add a t-shirt on man's left hand
+    your answer:[(0.1,0.2,0.3,0.5)],it's big enough for inpainting model to generate a t-shirt there.
 Remember: Only need to provide the answer, without any additional responses.
     '''
 ################################调试函数
@@ -297,3 +303,9 @@ def client1():
         max_retries=2,
     )
     return client
+#编码图片
+def encode_image(pil_image:Image.Image)->str:
+    buffer = BytesIO()
+    pil_image.save(buffer, format="JPEG")
+    encoded_string = base64.b64encode(buffer.getvalue()).decode('utf-8')
+    return f"data:{'image/jpeg'};base64,{encoded_string}"

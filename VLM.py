@@ -37,12 +37,6 @@ def ExtractAnswer(data:str):
         if beg1!=-1 and end1!=-1:
             think=data[beg1+len("<think>"):end1]
         return think,answer
-#######################################编码图片
-def encode_image(pil_image):
-    buffer = BytesIO()
-    pil_image.save(buffer, format="JPEG")
-    encoded_string = base64.b64encode(buffer.getvalue()).decode('utf-8')
-    return f"data:{'image/jpeg'};base64,{encoded_string}"
 #####################################API基础调用
 def ImageAnswer(images:list,role_tip:str,question:str,client,model):
     try:
@@ -105,6 +99,36 @@ def AnswerImage(images:list,role_tip:str,question:str):
     _,res=ExtractAnswer(res)
     return res
     '''
+##########################################获取ROE
+def GetROE(image:Image.Image,question:str) ->list:
+    try:    
+        res=AnswerImage([image],GetMaskArea_Prompt,question)
+        rr=""
+        for x in res:
+            if x not in "[]()":
+                rr=rr+x
+        res=[float(s.strip()) for s in rr.split(",")]
+        w,h=image.size
+        ret=[]
+        tmp=[]
+        for i in range(len(res)):
+            val=res[i]
+            if i%4==0:
+                val=int(val*w)
+            elif i%4==1:
+                val=int(val*h)
+            elif i%4==2:
+                val=int(val*w)
+            else:
+                val=int(val*h)
+            tmp.append(val)
+            if i%4==3:
+                ret.append(tmp)
+                tmp=[]
+    except Exception as e:
+        Debug("GetROE:",e,res)
+        return GetROE(image,question)
+    return ret
 ##########################################获取得分
 def GetImageScore(images:list,role_tip:str,question:str):
     def run(task):

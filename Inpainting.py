@@ -2,9 +2,11 @@ from PIL import Image
 import numpy as np
 import torch
 from VLM import *
-from diffusers import AutoPipelineForInpainting
+from diffusers import AutoPipelineForInpainting 
 import torch
 import random
+import cv2
+from VLM import GetROE
 ####################################
 pipe = AutoPipelineForInpainting.from_pretrained("diffusers/stable-diffusion-xl-1.0-inpainting-0.1", torch_dtype=torch.float16, variant="fp16").to("cuda")
 ####################################
@@ -29,54 +31,23 @@ def GenerateMask(image: Image.Image,boxes) -> Image.Image:
         for y in range(box[1],box[3]):
             for x in range(box[0],box[2]):
                 new_pixels[x, y] = (255, 255, 255)  # 纯白
-    return new_img
+    return new_img.convert("L")
 ######################################get box
-def GetInpaintingBox(image:Image.Image,question:str) ->list:
-    try:    
-        res=AnswerImage([image],GetMaskArea_Prompt,question)
-        rr=""
-        for x in res:
-            if x not in "[]()":
-                rr=rr+x
-        res=[float(s.strip()) for s in rr.split(",")]
-        w,h=image.size
-        ret=[]
-        tmp=[]
-        for i in range(len(res)):
-            val=res[i]
-            if i%4==0:
-                val=int(val*w)
-            elif i%4==1:
-                val=int(val*h)
-            elif i%4==2:
-                val=int(val*w)
-            else:
-                val=int(val*h)
-            tmp.append(val)
-            if i%4==3:
-                ret.append(tmp)
-                tmp=[]
-    except Exception as e:
-        Debug("GetInpaintingBox:",e,res)
-        return GetInpaintingBox(image,question)
-    return ret
 from PIL import ImageDraw
-def draw_red_box(image, box, width=3):
+def draw_red_box(image, boxes, width=3):
     # 拷贝原图避免修改原图像
     image_copy = image.copy()
-    
     # 创建可绘制对象
     draw = ImageDraw.Draw(image_copy)
     # 画红框
-    draw.rectangle(box, outline="red", width=width)
+    for box in boxes:
+        draw.rectangle(box, outline="red", width=width)
     return image_copy
 #inpainiting
 def InpaintingArea(image:Image,task:str):
     #get box
-    boxes=GetInpaintingBox(image,f"Now I will give you the image-edit instruction:{task}.You should give me the fittable answer as a mask for inpainting")
+    boxes=GetROE(image,f"Now I will give you the image-edit instruction:{task}.You should give me the fittable answer as a mask for inpainting")
     Debug("the box is:",boxes)
-    res=draw_red_box(image,boxes[0])
-    res.save("output.jpg")
     #get mask
     mask=GenerateMask(image,boxes)
     #inpainting
