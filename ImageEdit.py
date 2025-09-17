@@ -23,13 +23,14 @@ QUANT_CONFIG = {
 # 使用4bit量化加载模型
 pipeline=None
 
-pipeline = QwenImageEditPipeline.from_pretrained(
+'''pipeline = QwenImageEditPipeline.from_pretrained(
     "Qwen/Qwen-Image-Edit",
     device_map="cuda",  # 自动分配设备
     torch_dtype=torch.bfloat16,
     **QUANT_CONFIG
 )
-pipeline.set_progress_bar_config(disable=None)
+
+pipeline.set_progress_bar_config(disable=None)'''
 ###############################优化指令
 def polish_edit_prompt(img,prompt):
     success=False
@@ -51,32 +52,36 @@ def polish_edit_prompt(img,prompt):
     return polished_prompt
 ###################################图像编辑(API)
 def ImageEditByAPI(image,prompt:str,neg_prompt:str)->Image.Image:
-    w,h=image.size
-    client = Ark( 
-        base_url="https://ark.cn-beijing.volces.com/api/v3", 
-        api_key="723cff33-3b13-420d-ab6d-267800a27475", 
-    )
-    imagesResponse = client.images.generate( 
-        model="doubao-seedream-4-0-250828", 
-        prompt=f"{prompt}",
-        image=[encode_image(image)],
-        size=f"{w}x{h}",
-        sequential_image_generation="auto",
-        sequential_image_generation_options=SequentialImageGenerationOptions(max_images=1),
-        response_format="url",
-        watermark=False
-    )
-    url=None
-    for image in imagesResponse.data:
-        url=image.url
-        break
-    response = requests.get(url,timeout=30)
-    response.raise_for_status() #检查请求是否成功
-    #将二进制数据转换为PIL Image对象
-    image = Image.open(BytesIO(response.content))
-    return image.convert("RGB").resize(image.size)    
+    try:
+        w,h=image.size
+        client = Ark( 
+            base_url="https://ark.cn-beijing.volces.com/api/v3", 
+            api_key="723cff33-3b13-420d-ab6d-267800a27475", 
+        )
+        imagesResponse = client.images.generate( 
+            model="doubao-seedream-4-0-250828", 
+            prompt=f"{prompt} and don't {neg_prompt}",
+            image=[encode_image(image)],
+            size=f"{w}x{h}",
+            sequential_image_generation="auto",
+            sequential_image_generation_options=SequentialImageGenerationOptions(max_images=1),
+            response_format="url",
+            watermark=False
+        )
+        url=None
+        for image in imagesResponse.data:
+            url=image.url
+            break
+        response = requests.get(url,timeout=30)
+        response.raise_for_status() #检查请求是否成功
+        #将二进制数据转换为PIL Image对象
+        image = Image.open(BytesIO(response.content))
+        return image.convert("RGB").resize(image.size)   
+    except Exception as e:
+        Debug("ImageEditByAPI:",e)
+        return ImageEditByAPI(image,prompt,neg_prompt)
 ###################################图像编辑
-def ImageEditByPipe(image,prompt:str,neg_prompt:str, prompt_mask=None):
+def ImageEditByPipe(image,prompt:str,neg_prompt:str):
     #
     inputs = {
         "image": image,
@@ -86,29 +91,24 @@ def ImageEditByPipe(image,prompt:str,neg_prompt:str, prompt_mask=None):
         "negative_prompt": neg_prompt,
         "num_inference_steps": 50,
         "guidance_scale":6,
-        "prompt_embeds_mask":prompt_mask
     }
     with torch.inference_mode():
         output = pipeline(** inputs)
         output_image = output.images[0]
     return output_image.convert("RGB")
 ###############################给定指令进行编辑
-def EditImage(image,prompt:str,negative_prompt_list=None,prompt_mask=None):
+def EditImage(image,prompt:str,negative_prompt_list=None,byAPI=False):
     negative_prompt=" "
     if negative_prompt_list:
         for x in negative_prompt_list:
             negative_prompt=negative_prompt+x+"."
-    if prompt_mask!=None:
-        # 转为 NumPy 数组，并标准化到 0~1
-        prompt_mask=prompt_mask.convert("L")
-        mask_np = np.array(prompt_mask)
-        mask_np = np.where(mask_np>0, 255, 0).astype(np.uint8)
-        mask_np = mask_np.astype(np.float32) / 255.0
-        # 转换为 torch.Tensor (1, 1, H, W) —— 模型要求的 batch size
-        prompt_mask = torch.tensor(mask_np).unsqueeze(0).unsqueeze(0).to("cuda")
     try:
-        res=ImageEditByPipe(image,prompt,negative_prompt,prompt_mask)
-        return res
+        if not byAPI:
+            res=ImageEditByPipe(image,prompt,negative_prompt)
+            return res
+        else:
+            res=ImageEditByAPI(image,prompt,negative_prompt)
+            return res
     except Exception as e:
         Debug("EditImage:",e)
         return None
@@ -126,7 +126,7 @@ if __name__=="__main__":
             mask=Image.open(mask).convert("RGB") if mask!="" else None
             prompt=input("prompt:")
             neg_prompt=input("neg_prompt:")
-            res=EditImage(image,prompt,[neg_prompt],mask)
+            res=EditImage(image,prompt,[neg_prompt])
             res.save(f"debug/{RandomImageFileName()}")
         except Exception as e:
             print("error:",e)

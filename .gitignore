@@ -168,3 +168,4 @@ debug/
 tmp/
 data/
 checkpoints/
+Safetensors/

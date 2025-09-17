@@ -67,7 +67,7 @@ def ImageAnswer(images:list,role_tip:str,question:str,client,model):
         return (response.choices[0].message.content)
     except Exception as e:
         Debug("Answer_Image:",e)
-        return ImageAnswer(images,role_tip,question)
+        return ImageAnswer(images,role_tip,question,client,model)
 #####################################调用
 def AnswerImage(images:list,role_tip:str,question:str):
     return ImageAnswer(images,role_tip,question,client0,"doubao-seed-1-6-vision-250815")
@@ -152,7 +152,6 @@ def GetImageScore(images:list,role_tip:str,question:str):
     for res in results:
         try:
             score=-1
-            prompt=""
             data = json.loads(res)
             if "score" in data:
                 score=int(data["score"])
