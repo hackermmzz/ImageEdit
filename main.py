@@ -6,6 +6,7 @@ from LLM import *
 from VLM import *
 from Model import *
 from NegativeFeedback import *
+from Process import *
 #初始化
 def Init():
    pass
@@ -29,21 +30,31 @@ def ProcessImageEdit(img_path:str,prompt:str,dir="./"):
     global_itr_cnt=0
     neg_prompts=[]
     edited_images=[]
-    loop=False
     task=None
-    mask=None
     while i <len(tasks):
         epoch=i+1
         global_itr_cnt+=1
         Debug(f"第{epoch}次指令编辑,第{global_itr_cnt}次尝试开始!")
         #任务优化
-        if not loop:
+        if global_itr_cnt==1:
             Debug("正在进行任务优化...")
             task=polish_edit_prompt(input_img,tasks[i][0])
             Debug(f"优化指令为:{task}")
+        #divide into four class
+        task_type=tasks[i][1]
+        if task_type in TaskType:
+            res=ProcessTask(input_img,task,task_type)
+        else:
+            Debug(f"unexpect task type of:{task_type} and the task is{task}")
+            return
         ###########编辑图像
+        Debug("获取编辑区域中...")
+        boxes=GetROE(input_img,f"Now I will give you the image-edit instruction:{task}.You should give me the fittable answer as a region for editing")
+        Debug("编辑区域为:",boxes)
+        img=DrawRedBox(input_img,boxes)
+        DebugSaveImage(img,f"box_{epoch}_{global_itr_cnt}_{RandomImageFileName()}")
         Debug("正在进行图像编辑...")
-        output_img=EditImage(input_img,task,neg_prompts,mask)
+        output_img=EditImage(img,f"Edit in red boxes that {task}",neg_prompts,True)
         #将output和input缩放到同一个尺寸
         output_img=output_img.resize(input_img.size)
         Debug("图像编辑完成!")
@@ -53,7 +64,6 @@ def ProcessImageEdit(img_path:str,prompt:str,dir="./"):
         global_score=inpainting_img[0]
         neg_prompt=inpainting_img[1]
         pos_prompt=inpainting_img[2]
-        mask=inpainting_img[3]
         edited_images.append((global_score,output_img))
         if  global_score<GlobalScoreThershold:
             if global_itr_cnt<GlobalItrThershold:
@@ -61,19 +71,32 @@ def ProcessImageEdit(img_path:str,prompt:str,dir="./"):
                 task=OptmEditInstruction(pos_prompt,task)
                 Debug(f"优化完成!指令为\"{task}\"")
                 neg_prompts.append(neg_prompt)
-                loop=True
                 continue
             #否则对区域重新绘制以及调用图像编辑API接口
             else:
-                Debug("inpainting......")
-                inpainting_img=InpaintingArea(input_img,task)
-                DebugSaveImage(inpainting_img,f"inpainting_{epoch}_{RandomImageFileName()}",dir)
+                #如果任务是移除，那么直接调用inpainting
+                if tasks[i][0]=="remove":
+                    Debug("inpainting......")
+                    inpainting_img=InpaintingArea(input_img,task)
+                    DebugSaveImage(inpainting_img,f"inpainting_{epoch}_{RandomImageFileName()}",dir)
+                    Debug("全局打分中......")
+                    score=GetImageGlobalScore(input_img,inpainting_img,task)[0]
+                    Debug("全局打分:",score)
+                    edited_images.append((score,inpainting_img))
+                #调用API接口
+                Debug("获取编辑区域中...")
+                boxes=GetROE(input_img,f"Now I will give you the image-edit instruction:{task}.You should give me the fittable answer as a region for editing")
+                Debug("编辑区域为:",boxes)
+                img=DrawRedBox(input_img,boxes)
+                DebugSaveImage(img,f"boxed_edit_{epoch}.png",dir)
+                Debug("API绘制中...")
+                output_img=EditImage(img,task,neg_prompts,byAPI=True)
+                Debug("API绘制完成")
+                DebugSaveImage(output_img,f"Edit_By_Api_{epoch}.png",dir)
                 Debug("全局打分中......")
                 score=GetImageGlobalScore(input_img,inpainting_img,task)[0]
                 Debug("全局打分:",score)
-                edited_images.append((score,inpainting_img))
-                #调用API接口
-                
+                edited_images.append((score,output_img))
                 
         #下一个任务
         i+=1
@@ -81,7 +104,6 @@ def ProcessImageEdit(img_path:str,prompt:str,dir="./"):
         input_img=max(edited_images, key=lambda x: x[0])[1]
         neg_prompts=[]
         edited_images=[]
-        loop=False
         DebugSaveImage(input_img,f"epoch{epoch}_edited_image.png",dir=dir)
     ###################################第三层：打分
     Debug("图片评分中....")

@@ -11,7 +11,7 @@ from PIL import Image
 ###############全局配置
 os.system("rm -rf debug/*")
 DEVICE = "cuda" if cuda.is_available() else "cpu"
-TEST_MODE=True	#测试模式将验证测试机
+TEST_MODE=False	#测试模式将验证测试机
 DEBUG=True
 DEBUG_OUTPUT=True
 DEBUG_DIR="debug/"
@@ -19,8 +19,10 @@ DEBUG_FILE=sys.stdout if (not DEBUG or not DEBUG_OUTPUT) else open(f"{DEBUG_DIR}
 GlobalScoreThershold=7
 GlobalItrThershold=3
 ClipScoreThreshold=0.21
+#################the type of task
+TaskType=["add","remove","replace","modify"]
 ################对任务进行细分
-Expert1_Prompt='''
+Expert1_Prompt=f'''
 Let's say you're a professional and detailed image editing task subdivider, specializing in breaking down a single comprehensive image editing task (which contains multiple interrelated yet independently executable sub-tasks that can all be completed in one round of editing) into clear, specific, and actionable individual sub-editing instructions. Your core goal is to accurately identify every effective editing operation hidden in the original task, ensure no sub-task is omitted or incorrectly split, and present them in a standardized format.
 
 ### Key Operating Rules (Must Be Strictly Followed):
@@ -32,7 +34,7 @@ Let's say you're a professional and detailed image editing task subdivider, spec
    - "Make the child hold a teddy bear."
    - "Remove the potted plant on the table."
    - "Replace the wall painting with a landscape photo."
-5. **You need to output the type of editing instructions after fine segmentation, including one of the following operations: add, remove,replace,modify.
+5. **You need to output the type of editing instructions after fine segmentation, including one of the following operations:{TaskType}.
 ### Format Requirements (Non-Negotiable):
 - You must only output the subdivided sub-tasks in an array [] format. Each sub-task is a separate string enclosed in double quotes, and commas are used to separate different sub-task strings.
 - Do not add any additional content outside the array (such as explanations, prompts, notes, or greetings). Even if the original task has only one sub-task, it must still be placed in the array.

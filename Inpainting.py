@@ -34,7 +34,7 @@ def GenerateMask(image: Image.Image,boxes) -> Image.Image:
     return new_img.convert("L")
 ######################################get box
 from PIL import ImageDraw
-def draw_red_box(image, boxes, width=3):
+def DrawRedBox(image, boxes, width=3):
     # 拷贝原图避免修改原图像
     image_copy = image.copy()
     # 创建可绘制对象
