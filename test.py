@@ -1,22 +1,33 @@
-from diffusers import FluxKontextPipeline
-from diffusers.utils import load_image
 import torch
-from PIL import Image
-pipe = FluxKontextPipeline.from_pretrained(
-    "black-forest-labs/FLUX.1-Krea-dev",
-     device_map="cuda",
-     torch_dtype=torch.float16  # 可改为 bfloat16 适配 SD3.5 等
+from diffusers.utils import load_image
+
+# pip install git+https://github.com/huggingface/diffusers
+from diffusers import QwenImageControlNetModel, QwenImageControlNetInpaintPipeline
+
+base_model = "Qwen/Qwen-Image"
+controlnet_model = "InstantX/Qwen-Image-ControlNet-Inpainting"
+
+controlnet = QwenImageControlNetModel.from_pretrained(controlnet_model, torch_dtype=torch.bfloat16)
+
+pipe = QwenImageControlNetInpaintPipeline.from_pretrained(
+    base_model, controlnet=controlnet, torch_dtype=torch.bfloat16
 )
-while True:
-    path=input("path:")
-    image = Image.open(path).convert("RGB")
-    prompt=input("prompt:")
-    edited_image = pipe(
-        image=image,
-        prompt=prompt,
-        guidance_scale=6.0,
-        num_inference_steps=50
-    )
-    print(len(edited_image.images))
-    edited_image=edited_image.images[0]
-    edited_image.save("output.png")
+pipe.to("cuda")
+
+image = load_image("https://huggingface.co/InstantX/Qwen-Image-ControlNet-Inpainting/resolve/main/assets/images/image1.png")
+mask_image = load_image("https://huggingface.co/InstantX/Qwen-Image-ControlNet-Inpainting/resolve/main/assets/masks/mask1.png")
+prompt = "一辆绿色的出租车行驶在路上"
+
+image = pipe(
+    prompt=prompt,
+    negative_prompt=" ",
+    control_image=image,
+    control_mask=mask_image,
+    controlnet_conditioning_scale=controlnet_conditioning_scale,
+    width=control_image.size[0],
+    height=control_image.size[1],
+    num_inference_steps=30,
+    true_cfg_scale=4.0,
+    generator=torch.Generator(device="cuda").manual_seed(42),
+).images[0]
+image.save(f"qwenimage_cn_inpaint_result.png")

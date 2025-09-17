@@ -14,7 +14,7 @@ from Tips import *
 ########################################################
 GroundingProcessor=AutoProcessor.from_pretrained("IDEA-Research/grounding-dino-base")
 GroundingModel=AutoModelForZeroShotObjectDetection.from_pretrained("IDEA-Research/grounding-dino-base").to(DEVICE).eval()
-SamModel=build_sam2("configs/sam2.1/sam2.1_hiera_l.yaml", "./checkpoints/sam2.1_hiera_large.pt", device=DEVICE).eval()
+SamModel=build_sam2("configs/sam2.1/sam2.1_hiera_l.yaml", "./Safetensors/checkpoints/sam2.1_hiera_large.pt", device=DEVICE).eval()
 SamPredictor=SAM2ImagePredictor(SamModel)
 CLIPProcessor=CLIPProcessor.from_pretrained("openai/clip-vit-large-patch14")
 CLIPModel = CLIPModel.from_pretrained("openai/clip-vit-large-patch14").to(DEVICE).eval()
@@ -79,7 +79,8 @@ def GroundingDINO_SAM2(image,text_prompt:str):
         extracted_boxes_img = []    # 裁剪的box区域图像
         extracted_boxes = []        # 边框坐标
         original_overlay_images = []  # 每个目标在原图上的叠加图像
-
+        white_mask_img=[]               #原图的灰白图  
+        cut_out_img=[]              #扣除对应目标的原图
         for i in range(len(detections)):
             mask = detections.mask[i]
             x1, y1, x2, y2 = detections.xyxy[i].astype(int)
@@ -103,18 +104,30 @@ def GroundingDINO_SAM2(image,text_prompt:str):
             overlay = np.zeros_like(rgb_img, dtype=np.uint8)
             overlay[mask] = rgb_img[mask]
             pil_overlay = Image.fromarray(overlay)
-
+            # 4 
+            img_arr = np.where(mask.T, 255, 0).astype(np.uint8)[..., np.newaxis]
+            img_arr = np.rot90(img_arr, k=-1)
+            img_arr = np.fliplr(img_arr)
+            white_mask = Image.fromarray(img_arr.squeeze())  
+            #5
+            masked_out_rgb = rgb_img.copy()
+            masked_out_rgb[mask] = 0  # 或换成 255 → 白色
+            cut_out_img_ = Image.fromarray(masked_out_rgb)
             # 保存结果
             extracted_masks_img.append(pil_mask.convert("RGB"))  # 或保持透明
             extracted_boxes_img.append(pil_box.convert("RGB"))
             extracted_boxes.append((x1, y1, x2, y2))
             original_overlay_images.append(pil_overlay)
-            #从里面选取CLIP分数最高的
-            maxscore=-1.0
-            target_mask_image=None
-            target_box_image=None
-            target_box=None
-            target_original_mask=None
+            white_mask_img.append(white_mask)
+            cut_out_img.append(cut_out_img_)
+        #从里面选取CLIP分数最高的
+        maxscore=-1.0
+        target_mask_image=None
+        target_box_image=None
+        target_box=None
+        target_original_mask=None
+        target_white_mask=None
+        target_cut_out_img=None
         for i in range(len(extracted_boxes)):
             try:
                 mask,box=extracted_masks_img[i],extracted_boxes_img[i]
@@ -125,11 +138,21 @@ def GroundingDINO_SAM2(image,text_prompt:str):
                     target_mask_image=mask
                     target_box=extracted_boxes[i]
                     target_original_mask=original_overlay_images[i]
+                    target_white_mask=white_mask_img[i]
+                    target_cut_out_img=cut_out_img[i]
             except Exception as e:
                 Debug("Exception:",e)
         if maxscore<0.0:
             raise Exception("None capture")
-        return target_mask_image,target_box_image,target_original_mask,target_box,maxscore
+        return {
+            "target_box":target_box,
+            "maxscore":maxscore,
+            "mask_image":target_mask_image,
+            "box_image":target_box_image,
+            "original_mask":target_original_mask,
+            "white_mask":target_white_mask,
+            "cutOut_img":target_cut_out_img,
+            }
     #
     def EnsureGet(text_threshold,box_threshold):
         if text_threshold<0.0 or box_threshold<0.0:
@@ -158,9 +181,5 @@ if __name__=="__main__":
     while True:
         path=input("path:")
         prompt=input("prompt:")
-        mask,box,ori_mask,_,score=GroundingDINO_SAM2(Image.open(path).convert("RGB"),prompt)
-        print(score)
-        mask.save('debug/mask.png')
-        box.save("debug/box.png")
-        ori_mask=alpha_to_white_black_mask(ori_mask)
-        ori_mask.save("debug/ori.png")
+        res=GroundingDINO_SAM2(Image.open(path).convert("RGB"),prompt)["cutOut_img"]
+        res.save("output.png")
