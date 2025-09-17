@@ -11,7 +11,7 @@ from PIL import Image
 ###############全局配置
 os.system("rm -rf debug/*")
 DEVICE = "cuda" if cuda.is_available() else "cpu"
-TEST_MODE=False	#测试模式将验证测试机
+TEST_MODE=True	#测试模式将验证测试机
 DEBUG=True
 DEBUG_OUTPUT=True
 DEBUG_DIR="debug/"
@@ -52,7 +52,6 @@ Your answers:
  ["add a rainbow in the sky","add"]
 ]
 '''
-
 ###################################利用反向提示词优化指令
 InsOptim_Prompt='''
 You are now an expert in optimising image editing instructions. I give you postive prompt and image editing instructions, you need to optimise my editing instructions based on the postive prompt and output new edit prompt according to the following rules.
@@ -260,6 +259,23 @@ Example:
     your answer:[(0.1,0.2,0.3,0.5)],it's big enough for inpainting model to generate a t-shirt there.
 Remember: Only need to provide the answer, without any additional responses.
     '''
+#################################获取编辑任务里面的操作对象
+ObjectGet_Prompt='''
+    You are now an expert in object extraction for image editing commands, and you need to extract the object I need to operate from it based on the editing commands I enter, following the following rules.
+    (1) The description of the operation object given must be as detailed as possible.
+    (2) If there is more than one object, you need to return more than one result.
+    (3) The answer you give shouldn't include the operation of the object.
+    (4) You must give the answer in the following format
+        Format:[ans0, ans1, ans2...]
+    Example: [ans0,ans1,ans2...].
+        Example_1.
+            Task: Remove the bird with red feathers.
+            Your answer: ["bird with red feathers"].
+        Example_2.
+            Task:Remove the ball from the table and change the colour of the green broom to red.
+            Your answer: ["ball on the table", "green broom"].
+    Remember, don't answer anything other than what I've specified!
+'''
 ################################调试函数
 def Debug(*msg):
 	if not DEBUG:

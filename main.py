@@ -6,7 +6,7 @@ from LLM import *
 from VLM import *
 from Model import *
 from NegativeFeedback import *
-from Process import *
+from ProcessTask import *
 #初始化
 def Init():
    pass
@@ -41,39 +41,29 @@ def ProcessImageEdit(img_path:str,prompt:str,dir="./"):
             task=polish_edit_prompt(input_img,tasks[i][0])
             Debug(f"优化指令为:{task}")
         #divide into four class
+        output_img=None
         task_type=tasks[i][1]
         if task_type in TaskType:
-            res=ProcessTask(input_img,task,task_type)
+            output_img=ProcessTask(input_img,task,task_type,neg_prompts,epoch,global_itr_cnt,dir)
         else:
             Debug(f"unexpect task type of:{task_type} and the task is{task}")
             return
-        ###########编辑图像
-        Debug("获取编辑区域中...")
-        boxes=GetROE(input_img,f"Now I will give you the image-edit instruction:{task}.You should give me the fittable answer as a region for editing")
-        Debug("编辑区域为:",boxes)
-        img=DrawRedBox(input_img,boxes)
-        DebugSaveImage(img,f"box_{epoch}_{global_itr_cnt}_{RandomImageFileName()}")
-        Debug("正在进行图像编辑...")
-        output_img=EditImage(img,f"Edit in red boxes that {task}",neg_prompts,True)
-        #将output和input缩放到同一个尺寸
-        output_img=output_img.resize(input_img.size)
-        Debug("图像编辑完成!")
-        DebugSaveImage(output_img,f"edited_image_{epoch}_"+RandomImageFileName(),dir=dir)
         ###########负反馈
-        inpainting_img=NegativeFeedback(task,input_img,output_img,global_itr_cnt,dir)
-        global_score=inpainting_img[0]
-        neg_prompt=inpainting_img[1]
-        pos_prompt=inpainting_img[2]
+        res=NegativeFeedback(task,input_img,output_img,global_itr_cnt,dir)
+        global_score=res[0]
+        neg_prompt=res[1]
+        pos_prompt=res[2]
         edited_images.append((global_score,output_img))
         if  global_score<GlobalScoreThershold:
             if global_itr_cnt<GlobalItrThershold:
-                Debug("正在优化指令...")
-                task=OptmEditInstruction(pos_prompt,task)
-                Debug(f"优化完成!指令为\"{task}\"")
+                if task_type not in ("remove"):
+                    Debug("正在优化指令...")
+                    task=OptmEditInstruction(pos_prompt,task)
+                    Debug(f"优化完成!指令为\"{task}\"")
                 neg_prompts.append(neg_prompt)
                 continue
             #否则对区域重新绘制以及调用图像编辑API接口
-            else:
+            '''else:
                 #如果任务是移除，那么直接调用inpainting
                 if tasks[i][0]=="remove":
                     Debug("inpainting......")
@@ -96,7 +86,7 @@ def ProcessImageEdit(img_path:str,prompt:str,dir="./"):
                 Debug("全局打分中......")
                 score=GetImageGlobalScore(input_img,inpainting_img,task)[0]
                 Debug("全局打分:",score)
-                edited_images.append((score,output_img))
+                edited_images.append((score,output_img))'''
                 
         #下一个任务
         i+=1

@@ -10,9 +10,14 @@ from VLM import GetROE
 ####################################
 pipe = AutoPipelineForInpainting.from_pretrained("diffusers/stable-diffusion-xl-1.0-inpainting-0.1", torch_dtype=torch.float16, variant="fp16").to("cuda")
 ####################################
-def Inpainting(image:Image.Image,mask:Image.Image,prompt:str):
+def Inpainting(image:Image.Image,mask:Image.Image,prompt:str,negative_prompt_list=None):
+    negative_prompt=""
+    if negative_prompt_list!=None:
+        for x in negative_prompt_list:
+            negative_prompt=negative_prompt+"."+x
     res = pipe(
         prompt=prompt,
+        negative_prompt=negative_prompt,
         image=image,
         mask_image=mask,
         guidance_scale=8.0,
