@@ -16,7 +16,7 @@ def ProcessImageEdit(img_path:str,prompt:str,dir="./"):
     if not os.path.exists(dir):
         os.makedirs(dir)
     #加载图片
-    ori_image=Image.open(img_path).convert("RGB")
+    ori_image=Image.open(img_path).convert("RGB").resize((960,960))
     DebugSaveImage(ori_image,f"origin_image_{RandomImageFileName()}",dir)
     ########################################第一层：专家池
     #专家1 任务细分

@@ -11,6 +11,7 @@ from transformers import AutoProcessor, AutoModelForZeroShotObjectDetection
 from transformers import CLIPModel, CLIPProcessor
 from scipy.spatial.distance import cosine
 from Tips import *
+import random
 ########################################################
 GroundingProcessor=AutoProcessor.from_pretrained("IDEA-Research/grounding-dino-base")
 GroundingModel=AutoModelForZeroShotObjectDetection.from_pretrained("IDEA-Research/grounding-dino-base").to(DEVICE).eval()
@@ -111,15 +112,22 @@ def GroundingDINO_SAM2(image,text_prompt:str):
             white_mask = Image.fromarray(img_arr.squeeze())  
             #5
             masked_out_rgb = rgb_img.copy()
-            masked_out_rgb[mask] = 0  # 或换成 255 → 白色
+            height, width = mask.shape
+            # 遍历每个像素位置
+            for i in range(height):
+                for j in range(width):
+                    # 检查当前位置的mask值是否为True
+                    if mask[i, j]:
+                        # 如果为True，将该位置的像素值设为0（或255）
+                        masked_out_rgb[i, j] =[255,0,0]#[random.randint(0,255),random.randint(0,255),random.randint(0,255)]  # 或 255
             cut_out_img_ = Image.fromarray(masked_out_rgb)
             # 保存结果
             extracted_masks_img.append(pil_mask.convert("RGB"))  # 或保持透明
             extracted_boxes_img.append(pil_box.convert("RGB"))
             extracted_boxes.append((x1, y1, x2, y2))
-            original_overlay_images.append(pil_overlay)
-            white_mask_img.append(white_mask)
-            cut_out_img.append(cut_out_img_)
+            original_overlay_images.append(pil_overlay.convert("RGB"))
+            white_mask_img.append(white_mask.convert("L"))
+            cut_out_img.append(cut_out_img_.convert("RGB"))
         #从里面选取CLIP分数最高的
         maxscore=-1.0
         target_mask_image=None

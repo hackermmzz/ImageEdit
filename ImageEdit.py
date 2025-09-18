@@ -60,7 +60,7 @@ def ImageEditByAPI(image,prompt:str,neg_prompt:str)->Image.Image:
         )
         imagesResponse = client.images.generate( 
             model="doubao-seedream-4-0-250828", 
-            prompt=f"{prompt} and don't {neg_prompt}",
+            prompt=f"{prompt} and don't occur {neg_prompt}",
             image=[encode_image(image)],
             size=f"{w}x{h}",
             sequential_image_generation="auto",
@@ -97,7 +97,7 @@ def ImageEditByPipe(image,prompt:str,neg_prompt:str):
         output_image = output.images[0]
     return output_image.convert("RGB")
 ###############################给定指令进行编辑
-def EditImage(image,prompt:str,negative_prompt_list=None,byAPI=False):
+def EditImage(image,prompt:str,negative_prompt_list=None,byAPI=True):
     negative_prompt=" "
     if negative_prompt_list:
         for x in negative_prompt_list:
