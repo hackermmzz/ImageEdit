@@ -8,10 +8,12 @@ from functools import partial
 from io import BytesIO
 import base64
 from PIL import Image
+import time
 ###############全局配置
 os.system("rm -rf debug/*")
 DEVICE = "cuda" if cuda.is_available() else "cpu"
 TEST_MODE=True	#测试模式将验证测试机
+TEST_CNT=20
 DEBUG=True
 DEBUG_OUTPUT=True
 DEBUG_DIR="debug/"
@@ -19,8 +21,11 @@ DEBUG_FILE=sys.stdout if (not DEBUG or not DEBUG_OUTPUT) else open(f"{DEBUG_DIR}
 GlobalScoreThershold=7
 GlobalItrThershold=3
 ClipScoreThreshold=0.21
+Enable_Local_LLM=False
+Enable_Local_VLM=False
+Enable_Local_ImageEdit=False
 #################the type of task
-TaskType=["add","remove","replace","modify"]
+TaskType=["add","remove","replace","modify","global_style_transfer"]
 ################对任务进行细分
 Expert1_Prompt=f'''
 Let's say you're a professional and detailed image editing task subdivider, specializing in breaking down a single comprehensive image editing task (which contains multiple interrelated yet independently executable sub-tasks that can all be completed in one round of editing) into clear, specific, and actionable individual sub-editing instructions. Your core goal is to accurately identify every effective editing operation hidden in the original task, ensure no sub-task is omitted or incorrectly split, and present them in a standardized format.
@@ -320,3 +325,10 @@ def encode_image(pil_image:Image.Image)->str:
     pil_image.save(buffer, format="JPEG")
     encoded_string = base64.b64encode(buffer.getvalue()).decode('utf-8')
     return f"data:{'image/jpeg'};base64,{encoded_string}"
+#性能分析
+class Timer():
+    def __init__(self):
+         self.beg=time.time()
+    def __call__(self, *args, **kwds):
+         interval=time.time()-self.beg
+         return interval

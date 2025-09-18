@@ -12,17 +12,22 @@ def Init():
    pass
 #运行一个单例
 def ProcessImageEdit(img_path:str,prompt:str,dir="./"):
+    #
+    cost_total=Timer()
     #创建目录
     if not os.path.exists(dir):
         os.makedirs(dir)
+    os.makedirs("Total")
     #加载图片
-    ori_image=Image.open(img_path).convert("RGB").resize((960,960))
+    ori_image=Image.open(img_path).convert("RGB")
     DebugSaveImage(ori_image,f"origin_image_{RandomImageFileName()}",dir)
     ########################################第一层：专家池
     #专家1 任务细分
     Debug("原指令为:",prompt)
     Debug("正在进行任务细分...")
+    cost=Timer()
     tasks=GetTask(ori_image,prompt)
+    Debug("任务细分耗时:",cost())
     Debug("任务细分:",tasks)
     ##########################################第二层：任务链
     input_img=ori_image
@@ -31,6 +36,7 @@ def ProcessImageEdit(img_path:str,prompt:str,dir="./"):
     neg_prompts=[]
     edited_images=[]
     task=None
+    EpochBestImage=[]
     while i <len(tasks):
         epoch=i+1
         global_itr_cnt+=1
@@ -38,55 +44,37 @@ def ProcessImageEdit(img_path:str,prompt:str,dir="./"):
         #任务优化
         if global_itr_cnt==1:
             Debug("正在进行任务优化...")
+            cost=Timer()
             task=polish_edit_prompt(input_img,tasks[i][0])
+            Debug("指令优化耗时:",cost())
             Debug(f"优化指令为:{task}")
         #divide into four class
         output_img=None
         task_type=tasks[i][1]
         if task_type in TaskType:
+            cost=Timer()
             output_img=ProcessTask(input_img,task,task_type,neg_prompts,epoch,global_itr_cnt,dir)
+            Debug("指令执行耗时:",cost())
         else:
             Debug(f"unexpect task type of:{task_type} and the task is{task}")
             return
         ###########负反馈
+        cost=Timer()
         res=NegativeFeedback(task,input_img,output_img,global_itr_cnt,dir)
+        Debug("负反馈耗时:",cost())
         global_score=res[0]
         neg_prompt=res[1]
         pos_prompt=res[2]
         edited_images.append((global_score,output_img))
         if  global_score<GlobalScoreThershold:
             if global_itr_cnt<GlobalItrThershold:
-                if task_type not in ("remove"):
-                    Debug("正在优化指令...")
-                    task=OptmEditInstruction(pos_prompt,task)
-                    Debug(f"优化完成!指令为\"{task}\"")
+                cost=Timer()
+                Debug("正在优化指令...")
+                task=OptmEditInstruction(pos_prompt,task)
+                Debug(f"优化完成!指令为\"{task}\"")
+                Debug("指令优化耗时:",cost())
                 neg_prompts.append(neg_prompt)
                 continue
-            #否则对区域重新绘制以及调用图像编辑API接口
-            '''else:
-                #如果任务是移除，那么直接调用inpainting
-                if tasks[i][0]=="remove":
-                    Debug("inpainting......")
-                    inpainting_img=InpaintingArea(input_img,task)
-                    DebugSaveImage(inpainting_img,f"inpainting_{epoch}_{RandomImageFileName()}",dir)
-                    Debug("全局打分中......")
-                    score=GetImageGlobalScore(input_img,inpainting_img,task)[0]
-                    Debug("全局打分:",score)
-                    edited_images.append((score,inpainting_img))
-                #调用API接口
-                Debug("获取编辑区域中...")
-                boxes=GetROE(input_img,f"Now I will give you the image-edit instruction:{task}.You should give me the fittable answer as a region for editing")
-                Debug("编辑区域为:",boxes)
-                img=DrawRedBox(input_img,boxes)
-                DebugSaveImage(img,f"boxed_edit_{epoch}.png",dir)
-                Debug("API绘制中...")
-                output_img=EditImage(img,task,neg_prompts,byAPI=True)
-                Debug("API绘制完成")
-                DebugSaveImage(output_img,f"Edit_By_Api_{epoch}.png",dir)
-                Debug("全局打分中......")
-                score=GetImageGlobalScore(input_img,inpainting_img,task)[0]
-                Debug("全局打分:",score)
-                edited_images.append((score,output_img))'''
                 
         #下一个任务
         i+=1
@@ -94,15 +82,24 @@ def ProcessImageEdit(img_path:str,prompt:str,dir="./"):
         input_img=max(edited_images, key=lambda x: x[0])[1]
         neg_prompts=[]
         edited_images=[]
+        EpochBestImage.append(input_img)
         DebugSaveImage(input_img,f"epoch{epoch}_edited_image.png",dir=dir)
     ###################################第三层：打分
     Debug("图片评分中....")
+    cost=Timer()
     score=GetCriticScore(ori_image,input_img,task)
+    Debug("图片评分耗时:",cost())
     Debug(f"最终评测机打分{score}")
     #保存图片
     fileName=RandomImageFileName()
     DebugSaveImage(input_img,fileName,dir=dir)
     Debug(f"图像{fileName}保存成功!")
+    #保存所有轮最好的图片
+    for x in len(EpochBestImage):
+        img=EpochBestImage[x]
+        DebugSaveImage(img,f"{x}.png",dir+"/Total/")
+    #统计一轮整体耗时
+    Debug("整体耗时:",cost_total())
 #运行逻辑
 def Run():
     if not TEST_MODE:
@@ -121,7 +118,9 @@ def Run():
             x=random.randint(0,len(all)-1)
             target.append(all[x])
             all=all[:x]+all[x+1:]
-        while len(target):
+        global TEST_CNT
+        while len(target) and TEST_CNT>0:
+            TEST_CNT-=1
             idx=target.pop()
             try:
                 target_img=f"data/{idx}/0.jpg"

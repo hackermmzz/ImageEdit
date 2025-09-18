@@ -12,25 +12,26 @@ from volcenginesdkarkruntime.types.images.images import SequentialImageGeneratio
 import requests
 import base64
 from io import BytesIO
-# 配置4bit量化参数
-QUANT_CONFIG = {
-            "load_in_4bit": True,
-            "load_in_8bit": False,
-            "bnb_4bit_quant_type": "nf4",       # NV推荐的NF4量化，适配A800
-            "bnb_4bit_compute_dtype": torch.bfloat16,  # 计算用bfloat16，A800原生支持
-            "bnb_4bit_use_double_quant": True,  # 双量化优化，减少参数冗余
-        }
-# 使用4bit量化加载模型
-pipeline=None
-
-'''pipeline = QwenImageEditPipeline.from_pretrained(
-    "Qwen/Qwen-Image-Edit",
-    device_map="cuda",  # 自动分配设备
-    torch_dtype=torch.bfloat16,
-    **QUANT_CONFIG
-)
-
-pipeline.set_progress_bar_config(disable=None)'''
+#######################################
+ImageEditPipe=None
+#######################################
+def LoadImageEdit():
+    global ImageEditPipe
+    # 配置4bit量化参数
+    QUANT_CONFIG = {
+                "load_in_4bit": True,
+                "load_in_8bit": False,
+                "bnb_4bit_quant_type": "nf4",       # NV推荐的NF4量化，适配A800
+                "bnb_4bit_compute_dtype": torch.bfloat16,  # 计算用bfloat16，A800原生支持
+                "bnb_4bit_use_double_quant": True,  # 双量化优化，减少参数冗余
+            }
+    ImageEditPipe = QwenImageEditPipeline.from_pretrained(
+        "Qwen/Qwen-Image-Edit",
+        device_map="cuda",  # 自动分配设备
+        torch_dtype=torch.bfloat16,
+        **QUANT_CONFIG
+    )
+    ImageEditPipe.set_progress_bar_config(disable=None)
 ###############################优化指令
 def polish_edit_prompt(img,prompt):
     success=False
@@ -52,36 +53,41 @@ def polish_edit_prompt(img,prompt):
     return polished_prompt
 ###################################图像编辑(API)
 def ImageEditByAPI(image,prompt:str,neg_prompt:str)->Image.Image:
-    try:
-        w,h=image.size
-        client = Ark( 
-            base_url="https://ark.cn-beijing.volces.com/api/v3", 
-            api_key="723cff33-3b13-420d-ab6d-267800a27475", 
-        )
-        imagesResponse = client.images.generate( 
-            model="doubao-seedream-4-0-250828", 
-            prompt=f"{prompt} and don't occur {neg_prompt}",
-            image=[encode_image(image)],
-            size=f"{w}x{h}",
-            sequential_image_generation="auto",
-            sequential_image_generation_options=SequentialImageGenerationOptions(max_images=1),
-            response_format="url",
-            watermark=False
-        )
-        url=None
-        for image in imagesResponse.data:
-            url=image.url
-            break
-        response = requests.get(url,timeout=30)
-        response.raise_for_status() #检查请求是否成功
-        #将二进制数据转换为PIL Image对象
-        image = Image.open(BytesIO(response.content))
-        return image.convert("RGB").resize(image.size)   
-    except Exception as e:
-        Debug("ImageEditByAPI:",e)
-        return ImageEditByAPI(image,prompt,neg_prompt)
+    client = Ark( 
+        base_url="https://ark.cn-beijing.volces.com/api/v3", 
+        api_key="723cff33-3b13-420d-ab6d-267800a27475", 
+    )
+    
+    input=image
+    w,h=image.size
+    if w*h<921600:
+        scale=(921600/(w*h))**(0.5)
+        input=image.resize((int(w*scale)+2,int(h*scale)+2))
+    
+    imagesResponse = client.images.generate( 
+        model="doubao-seedream-4-0-250828", 
+        prompt=f"{prompt} and don't occur {neg_prompt}",
+        image=[encode_image(input)],
+        size=f"{input.size[0]}x{input.size[1]}",
+        sequential_image_generation="auto",
+        sequential_image_generation_options=SequentialImageGenerationOptions(max_images=1),
+        response_format="url",
+        watermark=False
+    )
+    url=None
+    for image in imagesResponse.data:
+        url=image.url
+        break
+    response = requests.get(url,timeout=30)
+    response.raise_for_status() #检查请求是否成功
+    #将二进制数据转换为PIL Image对象
+    image = Image.open(BytesIO(response.content))
+    return image.convert("RGB").resize(image.size)   
 ###################################图像编辑
 def ImageEditByPipe(image,prompt:str,neg_prompt:str):
+    global ImageEditPipe
+    if ImageEditPipe==None:
+        LoadImageEdit()
     #
     inputs = {
         "image": image,
@@ -93,37 +99,29 @@ def ImageEditByPipe(image,prompt:str,neg_prompt:str):
         "guidance_scale":6,
     }
     with torch.inference_mode():
-        output = pipeline(** inputs)
+        output = ImageEditPipe(** inputs)
         output_image = output.images[0]
     return output_image.convert("RGB")
 ###############################给定指令进行编辑
-def EditImage(image,prompt:str,negative_prompt_list=None,byAPI=True):
+def EditImage(image,prompt:str,negative_prompt_list=None):
     negative_prompt=" "
     if negative_prompt_list:
         for x in negative_prompt_list:
-            negative_prompt=negative_prompt+x+"."
+            negative_prompt=negative_prompt+x+". "
     try:
-        if not byAPI:
-            res=ImageEditByPipe(image,prompt,negative_prompt)
-            return res
+        if Enable_Local_ImageEdit:
+            return ImageEditByPipe(image,prompt,negative_prompt)
         else:
-            res=ImageEditByAPI(image,prompt,negative_prompt)
-            return res
+            return ImageEditByAPI(image,prompt,negative_prompt)
     except Exception as e:
         Debug("EditImage:",e)
-        return None
-
-
-
-
+        return EditImage(image,prompt,negative_prompt_list)
 ################################测试
 if __name__=="__main__":
     while True:
         try:
             path=input("path:")
             image=Image.open(path).convert("RGB")
-            mask=input("mask_path:")
-            mask=Image.open(mask).convert("RGB") if mask!="" else None
             prompt=input("prompt:")
             neg_prompt=input("neg_prompt:")
             res=EditImage(image,prompt,[neg_prompt])

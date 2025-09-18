@@ -7,7 +7,7 @@ from VLM import *
 from Model import *
 from NegativeFeedback import *
 
-def ProcessTask_Else(image:Image.Image,task:str,task_type:str,neg_prompts:list,epoch:int,global_itr_cnt:int,dir:str):
+def Process_Else(image:Image.Image,task:str,neg_prompts:list,epoch:int,global_itr_cnt:int,dir:str):
     ###########编辑图像
     Debug("获取编辑区域中...")
     boxes=GetROE(image,f"Now I will give you the image-edit instruction:{task}.You should give me the fittable answer as a region for editing")
@@ -39,10 +39,26 @@ def Process_Remove(image:Image.Image,task:str,neg_prompts:list,epoch:int,global_
     DebugSaveImage(output_img,f"edited_image_{epoch}_"+RandomImageFileName(),dir=dir)
     return output_img
 
- 
+def Process_Add(image:Image.Image,task:str,neg_prompts:list,epoch:int,global_itr_cnt:int,dir:str):
+    return Process_Else(image,task,"add",neg_prompts,epoch,global_itr_cnt,dir)
+
+def Process_GlobalStyleTransfer(image:Image.Image,task:str,neg_prompts:list,epoch:int,global_itr_cnt:int,dir:str):
+    #直接编辑
+    Debug("正在进行图像编辑...")
+    output_img=EditImage(image,f"Edit in red boxes that {task}",neg_prompts)
+    output_img=output_img.resize(image.size)
+    Debug("图像编辑完成!")
+    DebugSaveImage(output_img,f"edited_image_{epoch}_"+RandomImageFileName(),dir=dir)
+    return output_img
+
+
 def ProcessTask(image:Image.Image,task:str,task_type:str,neg_prompts:list,epoch:int,global_itr_cnt:int,dir:str)->Image.Image:
     if task_type=="remove":
         return Process_Remove(image,task,neg_prompts,epoch,global_itr_cnt,dir)
+    elif task_type=="add":
+        return Process_Add(image,task,neg_prompts,epoch,global_itr_cnt,dir)
+    elif task_type=="global_style_transfer":
+        return Process_GlobalStyleTransfer(image,task,neg_prompts,epoch,global_itr_cnt,dir)
     else:
-        return ProcessTask_Else(image,task,task_type,neg_prompts,epoch,global_itr_cnt,dir)
+        return Process_Else(image,task,neg_prompts,epoch,global_itr_cnt,dir)
     
