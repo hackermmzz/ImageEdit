@@ -17,8 +17,12 @@ def GetTask(image,description:str):
 def GetImageGlobalScore(source,target,description:str):
     res=GetImageScore([source,target],GlobalScore_Prompt,"The image is as above, and my editing instruction for this round is {}".format(description))
     cost=Timer()
-    pos_prompt=SummaryPrompt(res[1])
-    neg_prompt=SummaryPrompt(res[2])
+    pos_prompt=""
+    neg_prompt=""
+    if len(res[1])!=0:
+        pos_prompt=SummaryPrompt(res[1])
+    if len(res[2])!=0:
+        neg_prompt=SummaryPrompt(res[2])
     Debug("SummaryPrompt cost:",cost())
     return res[0],pos_prompt,neg_prompt
 #艺术家打分

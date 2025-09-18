@@ -160,9 +160,8 @@ def GetImageScore(images:list,role_tip:str,question:str):
     ]
     #
     cost=Timer()
-    results=[]
-    for x in tasks:
-        results.append(run(x))
+    with ThreadPoolExecutor(max_workers=len(tasks)) as executor:
+        results = list(executor.map(run, tasks))  
     Debug("GetImageScore cost:",cost())
     #解析结果
     useful=[]
