@@ -7,6 +7,15 @@ from VLM import *
 from Model import *
 from NegativeFeedback import *
 
+def Process_Directly(image:Image.Image,task:str,neg_prompts:list,epoch:int,global_itr_cnt:int,dir:str):
+    #直接编辑
+    Debug("正在进行图像编辑...")
+    output_img=EditImage(image,f"Edit in red boxes that {task}",neg_prompts)
+    output_img=output_img.resize(image.size)
+    Debug("图像编辑完成!")
+    DebugSaveImage(output_img,f"edited_image_{epoch}_"+RandomImageFileName(),dir=dir)
+    return output_img
+
 def Process_Else(image:Image.Image,task:str,neg_prompts:list,epoch:int,global_itr_cnt:int,dir:str):
     ###########编辑图像
     Debug("获取编辑区域中...")
@@ -43,14 +52,10 @@ def Process_Add(image:Image.Image,task:str,neg_prompts:list,epoch:int,global_itr
     return Process_Else(image,task,"add",neg_prompts,epoch,global_itr_cnt,dir)
 
 def Process_GlobalStyleTransfer(image:Image.Image,task:str,neg_prompts:list,epoch:int,global_itr_cnt:int,dir:str):
-    #直接编辑
-    Debug("正在进行图像编辑...")
-    output_img=EditImage(image,f"Edit in red boxes that {task}",neg_prompts)
-    output_img=output_img.resize(image.size)
-    Debug("图像编辑完成!")
-    DebugSaveImage(output_img,f"edited_image_{epoch}_"+RandomImageFileName(),dir=dir)
-    return output_img
+    return Process_Directly(image,task,neg_prompts,epoch,global_itr_cnt,dir)
 
+def Process_PerspectiveShift(image:Image.Image,task:str,neg_prompts:list,epoch:int,global_itr_cnt:int,dir:str):
+    return Process_Directly(image,task,neg_prompts,epoch,global_itr_cnt,dir)
 
 def ProcessTask(image:Image.Image,task:str,task_type:str,neg_prompts:list,epoch:int,global_itr_cnt:int,dir:str)->Image.Image:
     if task_type=="remove":
@@ -59,6 +64,8 @@ def ProcessTask(image:Image.Image,task:str,task_type:str,neg_prompts:list,epoch:
         return Process_Add(image,task,neg_prompts,epoch,global_itr_cnt,dir)
     elif task_type=="global_style_transfer":
         return Process_GlobalStyleTransfer(image,task,neg_prompts,epoch,global_itr_cnt,dir)
+    elif task_type=="perspective_shift":
+        return Process_PerspectiveShift(image,task,neg_prompts,epoch,global_itr_cnt,dir)
     else:
         return Process_Else(image,task,neg_prompts,epoch,global_itr_cnt,dir)
     

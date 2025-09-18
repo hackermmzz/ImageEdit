@@ -17,7 +17,7 @@ def ProcessImageEdit(img_path:str,prompt:str,dir="./"):
     #创建目录
     if not os.path.exists(dir):
         os.makedirs(dir)
-    os.makedirs("Total")
+    os.makedirs(f"{dir}/Total")
     #加载图片
     ori_image=Image.open(img_path).convert("RGB")
     DebugSaveImage(ori_image,f"origin_image_{RandomImageFileName()}",dir)
@@ -95,7 +95,7 @@ def ProcessImageEdit(img_path:str,prompt:str,dir="./"):
     DebugSaveImage(input_img,fileName,dir=dir)
     Debug(f"图像{fileName}保存成功!")
     #保存所有轮最好的图片
-    for x in len(EpochBestImage):
+    for x in range(len(EpochBestImage)):
         img=EpochBestImage[x]
         DebugSaveImage(img,f"{x}.png",dir+"/Total/")
     #统计一轮整体耗时

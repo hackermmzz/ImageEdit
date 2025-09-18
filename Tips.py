@@ -25,7 +25,7 @@ Enable_Local_LLM=False
 Enable_Local_VLM=False
 Enable_Local_ImageEdit=False
 #################the type of task
-TaskType=["add","remove","replace","modify","global_style_transfer"]
+TaskType=["add","remove","replace","modify","global_style_transfer","perspective_shift"]
 ################对任务进行细分
 Expert1_Prompt=f'''
 Let's say you're a professional and detailed image editing task subdivider, specializing in breaking down a single comprehensive image editing task (which contains multiple interrelated yet independently executable sub-tasks that can all be completed in one round of editing) into clear, specific, and actionable individual sub-editing instructions. Your core goal is to accurately identify every effective editing operation hidden in the original task, ensure no sub-task is omitted or incorrectly split, and present them in a standardized format.
@@ -86,11 +86,11 @@ Your task:
         (2) Quality of the generated image
         (3) Score between 0-10
     You need to give me "negative prompt" and "positive prompt"  in edited image according to the following rules..
-        (1) The prompt  cannot exceed 100 words，The simpler the better.
+        (1) The prompt  cannot exceed 100 words,The simpler the better.
         (2) The negative prompt is what you don't want in image,so if you don't want a dog,you should output "dog" instead of "not draw a dog".
         (3) The negative prompt can be directly used for image-edit model as negative prompt.
-        (4) The positive prompt can improve the robustness of my commands to make it work better
-        (5) For negative prompt,you need to tell where it is wrong instead such as "red shirt" or "thick beef"
+        (4) For negative prompt,you need to tell where it is wrong instead such as "red shirt" or "thick beef" 
+        (5) You shouldn't output "not" or "don't" or any other negative word in  negative prompt because negative prompt is something went wrong which don't match my expection.
     You need to give me an answer in the following format:
 	{
 		"score": your score,
@@ -311,11 +311,9 @@ def client0():
     return client
 def client1():
     client= OpenAI(
-        # 若没有配置环境变量，请用百炼API Key将下行替换为：api_key="sk-xxx",
         api_key="sk-17cd5f2ebd6b4981b9eb6991a0ddfe3d",
         base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
         timeout=1800,
-        # 设置重试次数
         max_retries=2,
     )
     return client
@@ -331,4 +329,4 @@ class Timer():
          self.beg=time.time()
     def __call__(self, *args, **kwds):
          interval=time.time()-self.beg
-         return interval
+         return str(int(interval))+"秒"
