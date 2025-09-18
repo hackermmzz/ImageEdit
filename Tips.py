@@ -80,19 +80,17 @@ Your task:
         (1) How well it matches the instructions (i.e. no large gaps in changes not mentioned in the instructions)
         (2) Quality of the generated image
         (3) Score between 0-10
-    You need to give me "negative prompt" and "positive prompt" and "area for prompt embeds mask" in edited image according to the following rules..
+    You need to give me "negative prompt" and "positive prompt"  in edited image according to the following rules..
         (1) The prompt  cannot exceed 100 words，The simpler the better.
         (2) The negative prompt is what you don't want in image,so if you don't want a dog,you should output "dog" instead of "not draw a dog".
         (3) The negative prompt can be directly used for image-edit model as negative prompt.
         (4) The positive prompt can improve the robustness of my commands to make it work better
-        (5) The area for prompt embeds mask should be as detailed as possible so that GroundingDino+SAM can work efficiently.
-        (6) For negative prompt,you need to tell where it is wrong instead such as "red shirt" or "thick beef"
+        (5) For negative prompt,you need to tell where it is wrong instead such as "red shirt" or "thick beef"
     You need to give me an answer in the following format:
 	{
 		"score": your score,
 		"negative_prompt": your negative prompt (or leave "None" if you think it's good enough),
-		"positive_prompt":your positive prompt,
-		"prompt_embeds_mask":Your given drawing area (If you don't think you need to give one, then you give "None".)
+		"positive_prompt":your positive prompt
 	}
 For example:
 Example_1:
@@ -102,8 +100,7 @@ Example_1:
     {
         "score":5,
         "negative_prompt": background changed ,
-        "positive_prompt": remove the dog clearly while keep other unchanged,
-        "prompt_embeds_mask":the black dog
+        "positive_prompt": remove the dog clearly while keep other unchanged
     }
 Example_2:
     tasks:add clouds in sky
@@ -112,8 +109,7 @@ Example_2:
     {
         "score":3,
         "negative_prompt":sun,
-        "positive_prompt": add clouds in sky while keep other unchanged,
-        "prompt_embeds_mask":the blue sky
+        "positive_prompt": add clouds in sky while keep other unchanged
     }
 Example_3:
     tasks:add some flowers in background,
@@ -122,8 +118,7 @@ Example_3:
     {
         "score":0,
         "negative_prompt":chrysanthemums,
-        "positive_prompt": add some flowers in background in particular ornamental flower,
-        "prompt_embeds_mask":None,
+        "positive_prompt": add some flowers in background in particular ornamental flower
     }
 Example_4:
     tasks:move man's hands over his head
@@ -132,8 +127,7 @@ Example_4:
     {
         "score":0,
         "negative_prompt":man's hands hang down,
-        "positive_prompt":move man's hands higher over his head ,
-        "prompt_embeds_mask":None
+        "positive_prompt":move man's hands higher over his head 
     }
 Example_5:
     tasks:add some steaks to the grill
@@ -142,8 +136,7 @@ Example_5:
     {
         "score":0,
         "negative_prompt":much red steak,
-        "positive_prompt":add some steaks to the grill while keep other steak's shape in good appearance,
-        "prompt_embeds_mask":the grill 
+        "positive_prompt":add some steaks to the grill while keep other steak's shape in good appearance
     }
 Remember, you only need to give me the final score and negative prompt, no other responses, and your score can only be a specific number from 0 - 10!
 Remember,You don't need to give me any explanations in any other place such as after prompt or score

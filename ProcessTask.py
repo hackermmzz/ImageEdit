@@ -13,9 +13,9 @@ def ProcessTask_Else(image:Image.Image,task:str,task_type:str,neg_prompts:list,e
     boxes=GetROE(image,f"Now I will give you the image-edit instruction:{task}.You should give me the fittable answer as a region for editing")
     Debug("编辑区域为:",boxes)
     img=DrawRedBox(image,boxes)
-    DebugSaveImage(img,f"box_{epoch}_{global_itr_cnt}_{RandomImageFileName()}")
+    DebugSaveImage(img,f"box_{epoch}_{global_itr_cnt}_{RandomImageFileName()}",dir)
     Debug("正在进行图像编辑...")
-    output_img=EditImage(img,f"Edit in red boxes that {task}",neg_prompts,True)
+    output_img=EditImage(img,f"Edit in red boxes that {task}",neg_prompts)
     #将output和input缩放到同一个尺寸
     output_img=output_img.resize(image.size)
     Debug("图像编辑完成!")
@@ -35,13 +35,14 @@ def Process_Remove(image:Image.Image,task:str,neg_prompts:list,epoch:int,global_
     DebugSaveImage(cutout,f"cutout_{epoch}_{global_itr_cnt}_{RandomImageFileName()}",dir) 
     #局部补全
     Debug("正在进行inpainting...")
-    output_img=Inpainting(cutout,mask,"get completion of the area",neg_prompts)
+    output_img=EditImage(cutout,f"please work in the area marked in red:{task}",neg_prompts)
     DebugSaveImage(output_img,f"edited_image_{epoch}_"+RandomImageFileName(),dir=dir)
     return output_img
-    
+
+ 
 def ProcessTask(image:Image.Image,task:str,task_type:str,neg_prompts:list,epoch:int,global_itr_cnt:int,dir:str)->Image.Image:
-    if task_type=="add":
-        return ProcessTask_Else(image,task,task_type,neg_prompts,epoch,dir)
-    elif task_type=="remove":
+    if task_type=="remove":
         return Process_Remove(image,task,neg_prompts,epoch,global_itr_cnt,dir)
+    else:
+        return ProcessTask_Else(image,task,task_type,neg_prompts,epoch,global_itr_cnt,dir)
     

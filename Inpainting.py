@@ -1,4 +1,4 @@
-from PIL import Image
+from PIL import Image,ImageFilter,ImageDraw
 import numpy as np
 import torch
 from VLM import *
@@ -7,6 +7,8 @@ import torch
 import random
 import cv2
 from VLM import GetROE
+from GroundedSam2 import *
+from diffusers.utils import load_image, make_image_grid
 ####################################
 pipe = AutoPipelineForInpainting.from_pretrained("diffusers/stable-diffusion-xl-1.0-inpainting-0.1", torch_dtype=torch.float16, variant="fp16").to("cuda")
 ####################################
@@ -21,6 +23,7 @@ def Inpainting(image:Image.Image,mask:Image.Image,prompt:str,negative_prompt_lis
         image=image,
         mask_image=mask,
         guidance_scale=8.0,
+        true_cfg_scale=1.0,
         num_inference_steps=20,  # steps between 15 and 30 work well for us
         strength=0.99,  # make sure to use `strength` below 1.0
         generator=torch.Generator(device="cuda").manual_seed(random.randint(0,np.iinfo(np.int32).max)),
@@ -37,8 +40,9 @@ def GenerateMask(image: Image.Image,boxes) -> Image.Image:
             for x in range(box[0],box[2]):
                 new_pixels[x, y] = (255, 255, 255)  # 纯白
     return new_img.convert("L")
+
 ######################################get box
-from PIL import ImageDraw
+
 def DrawRedBox(image, boxes, width=3):
     # 拷贝原图避免修改原图像
     image_copy = image.copy()
@@ -48,16 +52,6 @@ def DrawRedBox(image, boxes, width=3):
     for box in boxes:
         draw.rectangle(box, outline="red", width=width)
     return image_copy
-#inpainiting
-def InpaintingArea(image:Image,task:str):
-    #get box
-    boxes=GetROE(image,f"Now I will give you the image-edit instruction:{task}.You should give me the fittable answer as a mask for inpainting")
-    Debug("the box is:",boxes)
-    #get mask
-    mask=GenerateMask(image,boxes)
-    #inpainting
-    res=Inpainting(image,mask,task)
-    return res
 ######################################
 if __name__=="__main__":
     while True:
@@ -65,7 +59,14 @@ if __name__=="__main__":
             path=input("image_path:")
             image=Image.open(path).convert("RGB")
             prompt=input("prompt:")
-            res=InpaintingArea(image,prompt)
+            neg_prompt=input("neg_prompt:")
+            res=GroundingDINO_SAM2(image,prompt)
+            mask,cutout=res["white_mask"],res["cutOut_img"]
+            #局部补全
+            Debug("正在进行inpainting...")
+            cutout.save("output.jpg")
+            mask.save("output.bmp")
+            res=Inpainting(image,mask,f"remove {prompt}",[neg_prompt])
             res.save("output.png")
         except Exception as e:
             print("Error:",e)

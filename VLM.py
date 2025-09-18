@@ -152,6 +152,8 @@ def GetImageScore(images:list,role_tip:str,question:str):
     for res in results:
         try:
             score=-1
+            negative_prompt=""
+            positive_prompt=""
             data = json.loads(res)
             if "score" in data:
                 score=int(data["score"])
@@ -159,20 +161,16 @@ def GetImageScore(images:list,role_tip:str,question:str):
                 negative_prompt=data["negative_prompt"]
             if "positive_prompt" in data:
                 positive_prompt=data["positive_prompt"]
-            if "prompt_embeds_mask" in data:
-                prompt_embeds_mask=data["prompt_embeds_mask"]
-            useful.append((score,negative_prompt,positive_prompt,prompt_embeds_mask))
+            useful.append((score,negative_prompt,positive_prompt))
         except Exception as e:
             pass
     #选取最小得分作为最终得分
     total_score=0
     target_negative_prompt=[]
     target_positive_prompt=[]
-    target_prompt_embeds_mask=""
-    for score,negative_prompt,positive_prompt,prompt_embeds_mask in useful:
+    for score,negative_prompt,positive_prompt in useful:
         total_score=total_score+score
         target_negative_prompt.append(negative_prompt)
         target_positive_prompt.append(positive_prompt)
-        target_prompt_embeds_mask=target_prompt_embeds_mask if len(target_prompt_embeds_mask)>len(prompt_embeds_mask) else prompt_embeds_mask
     #
-    return total_score/len(useful),target_negative_prompt,target_positive_prompt,target_prompt_embeds_mask
+    return total_score/len(useful),target_negative_prompt,target_positive_prompt
