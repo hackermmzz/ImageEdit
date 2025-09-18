@@ -6,24 +6,25 @@ import base64
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 import json
+import time
 ##################################
 VLMProcessor=None
 VLMModel=None
 ##################################加载本地模型
 def LoadVLM():
-        QUANT_CONFIG = {
-            "load_in_4bit": False,
-            "load_in_8bit": False,
-            "low_cpu_mem_usage": False,
-        }
-        global VLMModel,VLMProcessor
-        VLMProcessor = AutoProcessor.from_pretrained("zai-org/GLM-4.1V-9B-Thinking")
-        VLMModel = AutoModelForImageTextToText.from_pretrained(
-            "zai-org/GLM-4.1V-9B-Thinking",
-            trust_remote_code=True,  # 必须开启（多模态模型结构需远程代码）
-            device_map="auto",  # 自动分配设备（优先用GPU，剩余放CPU）
-            **QUANT_CONFIG  # 启用显存优化（若CPU运行，删除这一行）
-            ).to(DEVICE).eval()
+    QUANT_CONFIG = {
+        "load_in_4bit": False,
+        "load_in_8bit": False,
+        "low_cpu_mem_usage": False,
+    }
+    global VLMModel,VLMProcessor
+    VLMProcessor = AutoProcessor.from_pretrained("zai-org/GLM-4.1V-9B-Thinking")
+    VLMModel = AutoModelForImageTextToText.from_pretrained(
+        "zai-org/GLM-4.1V-9B-Thinking",
+        trust_remote_code=True,  # 必须开启（多模态模型结构需远程代码）
+        device_map="auto",  # 自动分配设备（优先用GPU，剩余放CPU）
+        **QUANT_CONFIG  # 启用显存优化（若CPU运行，删除这一行）
+        ).to(DEVICE).eval()
 ######################################调用本地部署模型需要提取答案
 def ExtractAnswer(data:str):
         think=""
@@ -38,49 +39,52 @@ def ExtractAnswer(data:str):
             think=data[beg1+len("<think>"):end1]
         return think,answer
 #####################################API基础调用
-def ImageAnswer(images:list,role_tip:str,question:str,client,model):
-    try:
-        for x in images:
-            if x is None:
-                return None
-        client=client()
-        response = client.chat.completions.create(
-        # 指定您创建的方舟推理接入点 ID，此处已帮您修改为您的推理接入点 ID
-        model=model,
-        messages=[
-            {
-                "role":"system",
-                "content": [
-                        {"type": "text", "text": f"{role_tip}"},
-                ]
-            },
-            {
-                "role": "user",
-                "content": [
-                        {"type": "text", "text": f"{question}"},
-                ]+
-                [ {"type": "image_url", "image_url": {"url": encode_image(image)}} for image in images]
-                ,
-            }
-        ],
-        )
-        return (response.choices[0].message.content)
-    except Exception as e:
-        Debug("Answer_Image:",e)
-        return ImageAnswer(images,role_tip,question,client,model)
-#####################################调用
-def AnswerImage(images:list,role_tip:str,question:str):
-    return ImageAnswer(images,role_tip,question,client0,"doubao-seed-1-6-vision-250815")
-    '''
-    processor=VLM.processor
-    model=VLM.model
+def AnswerImageByAPI(images:list,role_tip:str,question:str,client,model):
+    for x in images:
+        if x is None:
+            return None
+    client=client()
+    response = client.chat.completions.create(
+    # 指定您创建的方舟推理接入点 ID，此处已帮您修改为您的推理接入点 ID
+    model=model,
+    messages=[
+        {
+            "role":"system",
+            "content": [
+                    {"type": "text", "text": f"{role_tip}"},
+            ]
+        },
+        {
+            "role": "user",
+            "content": [
+                    {"type": "text", "text": f"{question}"},
+            ]+
+            [ {"type": "image_url", "image_url": {"url": encode_image(image)}} for image in images]
+            ,
+        }
+    ],
+    )
+    return (response.choices[0].message.content)
+#####################################本地调用
+def AnswerImageByPipe(images:list,role_tip:str,question:str):
+    if processor==None:
+        LoadVLM()
+    #################
+    processor=VLMProcessor
+    model=VLMModel
         #
     messages = [
+        {
+            "role":"system",
+            "content":[
+                {"type": "text", "text": f"{role_tip}"},
+            ]    
+        },
         {
             "role": "user",
             "content": [
                 {"type": "image"} for _ in range(len(images))
-                ]+[{"type": "text", "text": text}]
+                ]+[{"type": "text", "text": question}]
         },
     ]
     # Prepare inputs
@@ -98,7 +102,16 @@ def AnswerImage(images:list,role_tip:str,question:str):
     #   
     _,res=ExtractAnswer(res)
     return res
-    '''
+#####################################调用
+def AnswerImage(images:list,role_tip:str,question:str,client=None):
+    try:
+        if Enable_Local_VLM:
+            return AnswerImageByPipe(images,role_tip,question)
+        else:
+            return AnswerImageByAPI(images,role_tip,question,client0,"doubao-seed-1-6-vision-250815")
+    except Exception as e:
+        Debug("AnswerImage:",e)
+        return AnswerImage(images,role_tip,question,client)
 ##########################################获取ROE
 def GetROE(image:Image.Image,question:str) ->list:
     try:    
@@ -141,12 +154,16 @@ def GetImageScore(images:list,role_tip:str,question:str):
             Debug("GetImageScore:",e)
             return None
     tasks=[
-        partial(ImageAnswer,client=client0,model="doubao-seed-1-6-vision-250815"),#调用基础的模型
-        partial(ImageAnswer,client=client1,model="qwen-vl-max"),
-        partial(ImageAnswer,client=client1,model="qwen-vl-plus-latest"),
+        partial(AnswerImageByAPI,client=client0,model="doubao-seed-1-6-vision-250815"),#调用基础的模型
+        partial(AnswerImageByAPI,client=client1,model="qwen-vl-max"),
+        partial(AnswerImageByAPI,client=client1,model="qwen-vl-plus"),
     ]
-    with ThreadPoolExecutor(max_workers=len(tasks)) as executor:
-        results = executor.map(run, tasks)
+    #
+    cost=Timer()
+    results=[]
+    for x in tasks:
+        results.append(run(x))
+    Debug("GetImageScore cost:",cost())
     #解析结果
     useful=[]
     for res in results:

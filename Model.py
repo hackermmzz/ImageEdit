@@ -16,7 +16,11 @@ def GetTask(image,description:str):
 #获取编辑后的全局打分
 def GetImageGlobalScore(source,target,description:str):
     res=GetImageScore([source,target],GlobalScore_Prompt,"The image is as above, and my editing instruction for this round is {}".format(description))
-    return res[0],SummaryPrompt(res[1]),SummaryPrompt(res[2]),res[3]
+    cost=Timer()
+    pos_prompt=SummaryPrompt(res[1])
+    neg_prompt=SummaryPrompt(res[2])
+    Debug("SummaryPrompt cost:",cost())
+    return res[0],pos_prompt,neg_prompt
 #艺术家打分
 def GetCriticScore(source,target,instructions:list):
     instruction=""
@@ -56,5 +60,5 @@ def SummaryPrompt(prompts:list)->str:
         return SummaryPrompt(prompts)
 ##########################################
 if __name__=="__main__":
-    x=input(":")
-    print(OptmEditInstruction("add some uncooked steaks","add some steaks"))
+    img=Image.open("data/1/0.jpg").convert("RGB")
+    GetImageGlobalScore(img,img,"remove the bird")
