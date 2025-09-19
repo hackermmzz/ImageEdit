@@ -7,9 +7,11 @@ from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 import json
 import time
+import threading
 ##################################
 VLMProcessor=None
 VLMModel=None
+VLMLock=threading.Lock()
 ##################################加载本地模型
 def LoadVLM():
     QUANT_CONFIG = {
@@ -67,40 +69,44 @@ def AnswerImageByAPI(images:list,role_tip:str,question:str,client,model):
     return (response.choices[0].message.content)
 #####################################本地调用
 def AnswerImageByPipe(images:list,role_tip:str,question:str):
-    if processor==None:
-        LoadVLM()
-    #################
-    processor=VLMProcessor
-    model=VLMModel
-        #
-    messages = [
-        {
-            "role":"system",
-            "content":[
-                {"type": "text", "text": f"{role_tip}"},
-            ]    
-        },
-        {
-            "role": "user",
-            "content": [
-                {"type": "image"} for _ in range(len(images))
-                ]+[{"type": "text", "text": question}]
-        },
-    ]
-    # Prepare inputs
-    prompt = processor.apply_chat_template(messages, add_generation_prompt=True)
-    inputs = processor(text=prompt, images=images, return_tensors="pt")
-    inputs = inputs.to(DEVICE)
-    # Generate outputs
-    generated_ids = model.generate(**inputs, max_new_tokens=65535)
-    generated_texts = processor.batch_decode(
-        generated_ids,
-        skip_special_tokens=True,
-    )
-    #对回复进行处理
-    res=generated_texts[0]
-    #   
-    _,res=ExtractAnswer(res)
+    try:
+        VLMLock.acquire()
+        if processor==None:
+            LoadVLM()
+        #################
+        processor=VLMProcessor
+        model=VLMModel
+            #
+        messages = [
+            {
+                "role":"system",
+                "content":[
+                    {"type": "text", "text": f"{role_tip}"},
+                ]    
+            },
+            {
+                "role": "user",
+                "content": [
+                    {"type": "image"} for _ in range(len(images))
+                    ]+[{"type": "text", "text": question}]
+            },
+        ]
+        # Prepare inputs
+        prompt = processor.apply_chat_template(messages, add_generation_prompt=True)
+        inputs = processor(text=prompt, images=images, return_tensors="pt")
+        inputs = inputs.to(DEVICE)
+        # Generate outputs
+        generated_ids = model.generate(**inputs, max_new_tokens=65535)
+        generated_texts = processor.batch_decode(
+            generated_ids,
+            skip_special_tokens=True,
+        )
+        #对回复进行处理
+        res=generated_texts[0]
+        #   
+        _,res=ExtractAnswer(res)
+    finally:
+        VLMLock.release()
     return res
 #####################################调用
 def AnswerImage(images:list,role_tip:str,question:str,client=None):
@@ -151,7 +157,6 @@ def GetImageScore(images:list,role_tip:str,question:str):
                         question=question
                         )
         except Exception as e:
-            Debug("GetImageScore:",e)
             return None
     tasks=[
         partial(AnswerImageByAPI,client=client0,model="doubao-seed-1-6-vision-250815"),#调用基础的模型
