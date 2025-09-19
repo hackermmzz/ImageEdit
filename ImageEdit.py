@@ -12,8 +12,10 @@ from volcenginesdkarkruntime.types.images.images import SequentialImageGeneratio
 import requests
 import base64
 from io import BytesIO
+import threading
 #######################################
 ImageEditPipe=None
+ImageEditPipeLock=threading.Lock()
 #######################################
 def LoadImageEdit():
     global ImageEditPipe
@@ -85,23 +87,30 @@ def ImageEditByAPI(image,prompt:str,neg_prompt:str)->Image.Image:
     return image.convert("RGB").resize(image.size)   
 ###################################图像编辑
 def ImageEditByPipe(image,prompt:str,neg_prompt:str):
-    global ImageEditPipe
-    if ImageEditPipe==None:
-        LoadImageEdit()
-    #
-    inputs = {
-        "image": image,
-        "prompt": prompt,
-        "generator": torch.manual_seed(random.randint(0,np.iinfo(np.int32).max)),
-        "true_cfg_scale": 4,
-        "negative_prompt": neg_prompt,
-        "num_inference_steps": 50,
-        "guidance_scale":6,
-    }
-    with torch.inference_mode():
-        output = ImageEditPipe(** inputs)
-        output_image = output.images[0]
-    return output_image.convert("RGB")
+    try:
+        ImageEditPipeLock.acquire()
+        
+        global ImageEditPipe
+        if ImageEditPipe==None:
+            LoadImageEdit()
+        #
+        inputs = {
+            "image": image,
+            "prompt": prompt,
+            "generator": torch.manual_seed(random.randint(0,np.iinfo(np.int32).max)),
+            "true_cfg_scale": 4,
+            "negative_prompt": neg_prompt,
+            "num_inference_steps": 50,
+            "guidance_scale":6,
+        }
+        res=None
+        with torch.inference_mode():
+            output = ImageEditPipe(** inputs)
+            output_image = output.images[0]
+        res=output_image.convert("RGB")
+    finally:
+        ImageEditPipeLock.release()
+    return res
 ###############################给定指令进行编辑
 def EditImage(image,prompt:str,negative_prompt_list=None):
     negative_prompt=" "

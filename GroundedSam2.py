@@ -12,48 +12,64 @@ from transformers import CLIPModel, CLIPProcessor
 from scipy.spatial.distance import cosine
 from Tips import *
 import random
+import threading
 ########################################################
 GroundingProcessor=AutoProcessor.from_pretrained("IDEA-Research/grounding-dino-base")
 GroundingModel=AutoModelForZeroShotObjectDetection.from_pretrained("IDEA-Research/grounding-dino-base").to(DEVICE).eval()
-SamModel=build_sam2("configs/sam2.1/sam2.1_hiera_l.yaml", "./Safetensors/checkpoints/sam2.1_hiera_large.pt", device=DEVICE).eval()
+SamModel=build_sam2("configs/sam2.1/sam2.1_hiera_l.yaml", "./Safetensors/SAM/sam2.1_hiera_large.pt", device=DEVICE).eval()
 SamPredictor=SAM2ImagePredictor(SamModel)
 CLIPProcessor=CLIPProcessor.from_pretrained("openai/clip-vit-large-patch14")
 CLIPModel = CLIPModel.from_pretrained("openai/clip-vit-large-patch14").to(DEVICE).eval()
+CLIPLock=threading.Lock()
+SAMLock=threading.Lock()
+GroundingDINOLock=threading.Lock()
 ########################################################计算CLIP分数
 def CLIPScore(image, target:str):
-    with torch.no_grad():
-        inputs = CLIPProcessor(images=image, return_tensors="pt").to(DEVICE)
-        embedding_0 = CLIPModel.get_image_features(** inputs)
-        inputs =CLIPProcessor(text=target,return_tensors="pt").to(DEVICE)
-        embedding_1=CLIPModel.get_text_features(**inputs)
-    imageD=embedding_0.cpu().numpy().flatten()
-    textD=embedding_1.cpu().numpy().flatten()
-    imageD = imageD / np.linalg.norm(imageD)
-    textD = textD / np.linalg.norm(textD)
+    try:
+        CLIPLock.acquire()
+        with torch.no_grad():
+            inputs = CLIPProcessor(images=image, return_tensors="pt").to(DEVICE)
+            embedding_0 = CLIPModel.get_image_features(** inputs)
+            inputs =CLIPProcessor(text=target,return_tensors="pt").to(DEVICE)
+            embedding_1=CLIPModel.get_text_features(**inputs)
+        imageD=embedding_0.cpu().numpy().flatten()
+        textD=embedding_1.cpu().numpy().flatten()
+        imageD = imageD / np.linalg.norm(imageD)
+        textD = textD / np.linalg.norm(textD)
+    finally:
+        CLIPLock.release()
     return 1.0-cosine(imageD, textD)
 ######################################################抠图
 def GroundingDINO_SAM2(image,text_prompt:str):
     #运行获取sam结果和grounding结果
     def run(text_threshold:float,box_threshold:float):
-        SamPredictor.set_image(np.array(image))
-        inputs = GroundingProcessor(images=image, text=text_prompt, return_tensors="pt").to(DEVICE)
-        with torch.no_grad():
-            outputs = GroundingModel(**inputs)
-        results = GroundingProcessor.post_process_grounded_object_detection(
-            outputs,
-            inputs.input_ids,
-            threshold=box_threshold,
-            text_threshold=text_threshold,
-            target_sizes=[image.size[::-1]]
-        )
+        try:
+            GroundingDINOLock.acquire()
+            inputs = GroundingProcessor(images=image, text=text_prompt, return_tensors="pt").to(DEVICE)
+            with torch.no_grad():
+                outputs = GroundingModel(**inputs)
+            results = GroundingProcessor.post_process_grounded_object_detection(
+                outputs,
+                inputs.input_ids,
+                threshold=box_threshold,
+                text_threshold=text_threshold,
+                target_sizes=[image.size[::-1]]
+            )
+        finally:
+            GroundingDINOLock.release()
         # get the box prompt for SAM 2
-        input_boxes = results[0]["boxes"].cpu().numpy()
-        masks, scores, logits = SamPredictor.predict(
-            point_coords=None,
-            point_labels=None,
-            box=input_boxes,
-            multimask_output=False,
-        )
+        try:
+            SAMLock.acquire()
+            input_boxes = results[0]["boxes"].cpu().numpy()
+            SamPredictor.set_image(np.array(image))
+            masks, scores, logits = SamPredictor.predict(
+                point_coords=None,
+                point_labels=None,
+                box=input_boxes,
+                multimask_output=False,
+            )
+        finally:
+            SAMLock.release()
         """
         Post-process the output of the model to get the masks, scores, and logits for visualization
         """

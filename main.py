@@ -7,17 +7,15 @@ from VLM import *
 from Model import *
 from NegativeFeedback import *
 from ProcessTask import *
+from concurrent.futures import ThreadPoolExecutor
+from functools import partial
 #初始化
 def Init():
    pass
 #运行一个单例
-def ProcessImageEdit(img_path:str,prompt:str,dir="./"):
+def ProcessImageEdit(img_path:str,prompt:str,dir:str):
     #
     cost_total=Timer()
-    #创建目录
-    if not os.path.exists(dir):
-        os.makedirs(dir)
-    os.makedirs(f"{dir}/Total")
     #加载图片
     ori_image=Image.open(img_path).convert("RGB")
     DebugSaveImage(ori_image,f"origin_image_{RandomImageFileName()}",dir)
@@ -106,7 +104,7 @@ def Run():
         try:
             img_path=input("请输入图片路径:")
             prompt=input("请输入编辑指令:")
-            ProcessImageEdit(img_path=img_path,prompt=prompt,dir="debug/")
+            ProcessImageEdit(img_path=img_path,prompt=prompt,idx=0)
         except Exception as e:
             print(e)
             return
@@ -118,29 +116,43 @@ def Run():
             x=random.randint(0,len(all)-1)
             target.append(all[x])
             all=all[:x]+all[x+1:]
+        tasks=[]
         global TEST_CNT
         while len(target) and TEST_CNT>0:
             TEST_CNT-=1
             idx=target.pop()
-            try:
-                target_img=f"data/{idx}/0.jpg"
-                target_prompt_file=f"data/{idx}/ins.txt"
-                if not os.path.exists(target_img) or not os.path.exists(target_prompt_file):
-                    break
-                #读取指令
-                with open(target_prompt_file,"r") as f:
-                    target_prompt=f.read()
-                Debug("-"*100)
-                Debug(f"第{idx}轮图像编辑开始!")
-                ProcessImageEdit(target_img,target_prompt,dir=f"debug/{idx}")
-                print(f"第{idx}轮图像处理成功!")
-            except Exception as e:
-                print(e)
-                print(f"第{idx}轮图像处理失败!")
-            finally:
-                idx+=1
-        
-        
+            def Task(idx):
+                try:
+                    #创建目录
+                    dir=f"{DEBUG_DIR}/{idx}/"
+                    os.makedirs(dir)
+                    os.makedirs(f"{dir}/Total")
+                    #创建日志文件
+                    if PARALLE_MODE:
+                        THREAD_OBJECT.logfile=sys.stdout if (not DEBUG or not DEBUG_OUTPUT) else open(f"{dir}/debug.txt","w",encoding="utf-8")
+                    #
+                    target_img=f"data/{idx}/0.jpg"
+                    target_prompt_file=f"data/{idx}/ins.txt"
+                    if not os.path.exists(target_img) or not os.path.exists(target_prompt_file):
+                        raise(f"no such {idx} file or directory!")
+                    #读取指令
+                    with open(target_prompt_file,"r") as f:
+                        target_prompt=f.read()
+                    Debug("-"*100)
+                    Debug(f"第{idx}轮图像编辑开始!")
+                    ProcessImageEdit(target_img,target_prompt,dir)
+                    Debug(f"第{idx}轮图像处理成功!")
+                except Exception as e:
+                    Debug(e)
+                    Debug(f"第{idx}轮图像处理失败!")
+            tasks.append(partial(Task,idx=idx))
+        #如果并行，则开启多线程
+        if PARALLE_MODE:
+            with ThreadPoolExecutor(max_workers=min(len(tasks),65535)) as executor:
+                futures = [executor.submit(task) for task in tasks]
+        else:
+            for task in tasks:
+                task()
 if __name__=="__main__":
     Init()#初始化
     Run()#运行

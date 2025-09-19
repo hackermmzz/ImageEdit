@@ -9,15 +9,20 @@ from io import BytesIO
 import base64
 from PIL import Image
 import time
+import threading
 ###############全局配置
-os.system("rm -rf debug/*")
+os.system("rm -rf debug/")
+os.system("mkdir debug")
 DEVICE = "cuda" if cuda.is_available() else "cpu"
 TEST_MODE=True	#测试模式将验证测试机
+PARALLE_MODE=True  #并行测试所有的数据集
+THREAD_OBJECT=None if not PARALLE_MODE else threading.local() #存储线程级别的对象数据
 TEST_CNT=20
 DEBUG=True
+DEBUG_LOCK=None if not DEBUG else threading.Lock()
 DEBUG_OUTPUT=True
 DEBUG_DIR="debug/"
-DEBUG_FILE=sys.stdout if (not DEBUG or not DEBUG_OUTPUT) else open(f"{DEBUG_DIR}/debug.txt","w")
+DEBUG_FILE=sys.stdout if (not DEBUG or not DEBUG_OUTPUT or PARALLE_MODE) else open(f"{DEBUG_DIR}/debug.txt","w",encoding="utf-8")
 GlobalScoreThershold=7
 GlobalItrThershold=3
 ClipScoreThreshold=0.21
@@ -276,23 +281,27 @@ ObjectGet_Prompt='''
 '''
 ################################调试函数
 def Debug(*msg):
-	if not DEBUG:
-		return
+    if not DEBUG:
+        return
     #
-	original=sys.stdout
-	sys.stdout=DEBUG_FILE
-    #
-	for x in msg:
-		print(x,end='',flush=True)
-	print()
-    #
-	sys.stdout=original
+    try:
+        DEBUG_LOCK.acquire()
+        original=sys.stdout
+        sys.stdout=THREAD_OBJECT.logfile if PARALLE_MODE else DEBUG_FILE
+        for x in msg:
+            print(x,end='',flush=True)
+        print()
+        sys.stdout=original
+    finally:
+        DEBUG_LOCK.release()
+        
 def DebugSaveImage(image,fileName=None,dir=DEBUG_DIR):
     if not DEBUG:
         return
     if fileName==None:
         fileName=RandomImageFileName()
     image.save(f"{dir}/{fileName}")
+    
 def RandomImageFileName():
     timestamp = time.time()
     total_milliseconds = int(timestamp * 1000)
@@ -330,3 +339,4 @@ class Timer():
     def __call__(self, *args, **kwds):
          interval=time.time()-self.beg
          return str(int(interval))+"秒"
+     

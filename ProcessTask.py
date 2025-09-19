@@ -49,7 +49,7 @@ def Process_Remove(image:Image.Image,task:str,neg_prompts:list,epoch:int,global_
     return output_img
 
 def Process_Add(image:Image.Image,task:str,neg_prompts:list,epoch:int,global_itr_cnt:int,dir:str):
-    return Process_Else(image,task,"add",neg_prompts,epoch,global_itr_cnt,dir)
+    return Process_Else(image,task,neg_prompts,epoch,global_itr_cnt,dir)
 
 def Process_GlobalStyleTransfer(image:Image.Image,task:str,neg_prompts:list,epoch:int,global_itr_cnt:int,dir:str):
     return Process_Directly(image,task,neg_prompts,epoch,global_itr_cnt,dir)
