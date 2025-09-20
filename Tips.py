@@ -279,6 +279,14 @@ ObjectGet_Prompt='''
             Your answer: ["ball on the table", "green broom"].
     Remember, don't answer anything other than what I've specified!
 '''
+################################预定义的反面提示词
+PreDefine_NegPrompt='''
+Worst quality, Normal quality, Low quality, Low res, Blurry, Jpeg artifacts, Grainy, text, logo, 
+watermark, banner, extra digits, signature, subtitling, Bad anatomy, Bad proportions, Deformed, 
+Disconnected limbs, Disfigured, Extra arms, Extra limbs, Extra hands, Fused fingers, Gross proportions, 
+Long neck, Malformed limbs, Mutated, Mutated hands, Mutated limbs, Missing arms, Missing fingers, Poorly drawn hands, 
+Poorly drawn face, Nsfw, Uncensored, Cleavage, Nude, Nipples, Overexposed, Plain background, Grainy, Underexposed, Deformed structures
+'''
 ################################调试函数
 def Debug(*msg):
     if not DEBUG:

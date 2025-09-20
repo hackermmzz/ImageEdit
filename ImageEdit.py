@@ -68,7 +68,7 @@ def ImageEditByAPI(image,prompt:str,neg_prompt:str)->Image.Image:
     
     imagesResponse = client.images.generate( 
         model="doubao-seedream-4-0-250828", 
-        prompt=f"{prompt} and don't occur {neg_prompt}",
+        prompt=f'''{prompt} and don't occur following cases: "{neg_prompt}" ''',
         image=[encode_image(input)],
         size=f"{input.size[0]}x{input.size[1]}",
         sequential_image_generation="auto",
@@ -113,10 +113,10 @@ def ImageEditByPipe(image,prompt:str,neg_prompt:str):
     return res
 ###############################给定指令进行编辑
 def EditImage(image,prompt:str,negative_prompt_list=None):
-    negative_prompt=" "
+    negative_prompt=f"{PreDefine_NegPrompt}"
     if negative_prompt_list:
         for x in negative_prompt_list:
-            negative_prompt=negative_prompt+x+". "
+            negative_prompt=x+","+negative_prompt
     try:
         if Enable_Local_ImageEdit:
             return ImageEditByPipe(image,prompt,negative_prompt)
