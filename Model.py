@@ -26,11 +26,7 @@ def GetImageGlobalScore(source,target,description:str):
     Debug("SummaryPrompt cost:",cost())
     return res[0],pos_prompt,neg_prompt
 #艺术家打分
-def GetCriticScore(source,target,instructions:list):
-    instruction=""
-    for idx in range(len(instructions)):
-        ins=instructions[idx]
-        instruction+="({})".format(idx+1)+ins+"\n"
+def GetCriticScore(source,target,instruction:str):
     question=f'''
         Now I am giving my images, before editing and after editing, as shown above.
         All the editing commands are as follows {instruction}

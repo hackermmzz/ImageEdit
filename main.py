@@ -85,7 +85,7 @@ def ProcessImageEdit(img_path:str,prompt:str,dir:str):
     ###################################第三层：打分
     Debug("图片评分中....")
     cost=Timer()
-    score=GetCriticScore(ori_image,input_img,task)
+    score=GetCriticScore(ori_image,input_img,prompt)
     Debug("图片评分耗时:",cost())
     Debug(f"最终评测机打分{score}")
     #保存图片

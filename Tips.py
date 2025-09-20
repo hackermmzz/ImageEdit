@@ -28,7 +28,7 @@ GlobalItrThershold=3
 ClipScoreThreshold=0.21
 Enable_Local_LLM=False
 Enable_Local_VLM=False
-Enable_Local_ImageEdit=False
+Enable_Local_ImageEdit=True
 #################the type of task
 TaskType=["add","remove","replace","modify","global_style_transfer","perspective_shift"]
 ################对任务进行细分
