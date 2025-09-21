@@ -320,7 +320,7 @@ def client0():
         # 此为默认路径，您可根据业务所在地域进行配置
         base_url="https://ark.cn-beijing.volces.com/api/v3",
         # 从环境变量中获取您的 API Key。此为默认方式，您可根据需要进行修改
-        api_key="723cff33-3b13-420d-ab6d-267800a27475",
+        api_key="4a4becd8-195c-4fc2-b620-65cb7b72af4e",
         timeout=1800,
         # 设置重试次数
         max_retries=2,
