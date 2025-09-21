@@ -109,7 +109,7 @@ def AnswerImageByPipe(images:list,role_tip:str,question:str):
         VLMLock.release()
     return res
 #####################################调用
-def AnswerImage(images:list,role_tip:str,question:str,client=None):
+def AnswerImage(images:list,role_tip:str,question:str):
     try:
         if Enable_Local_VLM:
             return AnswerImageByPipe(images,role_tip,question)
@@ -117,7 +117,7 @@ def AnswerImage(images:list,role_tip:str,question:str,client=None):
             return AnswerImageByAPI(images,role_tip,question,client1,"qwen-vl-max")
     except Exception as e:
         Debug("AnswerImage:",e)
-        return AnswerImage(images,role_tip,question,client)
+        return AnswerImage(images,role_tip,question)
 ##########################################获取ROE
 def GetROE(image:Image.Image,question:str) ->list:
     try:    

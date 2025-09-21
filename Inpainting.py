@@ -10,7 +10,7 @@ from VLM import GetROE
 from GroundedSam2 import *
 from diffusers.utils import load_image, make_image_grid
 ####################################
-pipe = AutoPipelineForInpainting.from_pretrained("diffusers/stable-diffusion-xl-1.0-inpainting-0.1", torch_dtype=torch.float16, variant="fp16").to("cuda")
+#pipe = AutoPipelineForInpainting.from_pretrained("diffusers/stable-diffusion-xl-1.0-inpainting-0.1", torch_dtype=torch.float16, variant="fp16").to("cuda")
 ####################################
 def Inpainting(image:Image.Image,mask:Image.Image,prompt:str,negative_prompt_list=None):
     negative_prompt=""

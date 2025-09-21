@@ -17,7 +17,7 @@ DEVICE = "cuda" if cuda.is_available() else "cpu"
 TEST_MODE=True	#测试模式将验证测试机
 PARALLE_MODE=True  #并行测试所有的数据集
 THREAD_OBJECT=None if not PARALLE_MODE else threading.local() #存储线程级别的对象数据
-TEST_CNT=1
+TEST_CNT=20
 DEBUG=True
 DEBUG_LOCK=None if not DEBUG else threading.Lock()
 DEBUG_OUTPUT=True
@@ -28,7 +28,7 @@ GlobalItrThershold=3
 ClipScoreThreshold=0.21
 Enable_Local_LLM=False
 Enable_Local_VLM=False
-Enable_Local_ImageEdit=True
+Enable_Local_ImageEdit=False
 #################the type of task
 TaskType=["add","remove","replace","modify","global_style_transfer","perspective_shift"]
 ################对任务进行细分
