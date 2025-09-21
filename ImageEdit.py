@@ -16,7 +16,7 @@ import threading
 #######################################
 ImageEditPipe=None
 ImageEditPipeLock=threading.Lock()
-#######################################
+#######################################加载图像编辑模型
 def LoadImageEdit():
     global ImageEditPipe
     # 配置4bit量化参数
@@ -57,7 +57,7 @@ def polish_edit_prompt(img,prompt):
 def ImageEditByAPI(image,prompt:str,neg_prompt:str)->Image.Image:
     client = Ark( 
         base_url="https://ark.cn-beijing.volces.com/api/v3", 
-        api_key="723cff33-3b13-420d-ab6d-267800a27475", 
+        api_key="4a4becd8-195c-4fc2-b620-65cb7b72af4e", 
     )
     
     input=image
@@ -125,6 +125,39 @@ def EditImage(image,prompt:str,negative_prompt_list=None):
     except Exception as e:
         Debug("EditImage:",e)
         return EditImage(image,prompt,negative_prompt_list)
+################################修复图像
+def ImageFixByAPI(images,prompt:str)->Image.Image:
+    #images[0]是原图,images[1]是编辑过的图
+    client = Ark( 
+        base_url="https://ark.cn-beijing.volces.com/api/v3", 
+        api_key="4a4becd8-195c-4fc2-b620-65cb7b72af4e", 
+    )
+    w,h=images[0].size
+    if w*h<921600:
+        scale=(921600/(w*h))**(0.5)
+        input0=images[0].resize((int(w*scale)+2,int(h*scale)+2))
+        input1=images[1].resize((int(w*scale)+2,int(h*scale)+2))
+        images=[input0,input1]
+    
+    imagesResponse = client.images.generate( 
+        model="doubao-seedream-4-0-250828", 
+        prompt=f'''{prompt}''',
+        image=[encode_image(input) for input in images],
+        size=f"{images[0].size[0]}x{images[0].size[1]}",
+        sequential_image_generation="auto",
+        sequential_image_generation_options=SequentialImageGenerationOptions(max_images=1),
+        response_format="url",
+        watermark=False
+    )
+    url=None
+    for image in imagesResponse.data:
+        url=image.url
+        break
+    response = requests.get(url,timeout=30)
+    response.raise_for_status() #检查请求是否成功
+    #将二进制数据转换为PIL Image对象
+    image = Image.open(BytesIO(response.content))
+    return image.convert("RGB").resize((w,h))   
 ################################测试
 if __name__=="__main__":
     while True:

@@ -23,6 +23,17 @@ CLIPModel = CLIPModel.from_pretrained("Safetensors/CLIP").to(DEVICE).eval()
 CLIPLock=threading.Lock()
 SAMLock=threading.Lock()
 GroundingDINOLock=threading.Lock()
+########################################################将局部mask转成全局mask
+def MaskToGlobal(mask, box, img_size):
+    # 解析参数
+    x0, y0, x1, y1 = box
+    img_w, img_h = img_size
+    # 创建全局mask（与原图尺寸相同）
+    global_mask = np.zeros((img_h, img_w), dtype=mask.dtype)
+    for x in range(x0,x1):
+        for y in range(y0,y1):
+            global_mask[y,x]=mask[y-y0,x-x0]
+    return global_mask
 ########################################################计算CLIP分数
 def CLIPScore(image, target:str):
     try:
@@ -40,7 +51,12 @@ def CLIPScore(image, target:str):
         CLIPLock.release()
     return 1.0-cosine(imageD, textD)
 ######################################################抠图
-def GroundingDINO_SAM2(image,text_prompt:str):
+def GroundingDINO_SAM2(image,text_prompt:str,crop_box=None):
+    crop_box=crop_box if crop_box else (0,0,image.size[0],image.size[1])
+    original=image.copy()
+    image=image.crop((crop_box[0],crop_box[1],crop_box[2],crop_box[3]))
+    ox=crop_box[0]
+    oy=crop_box[1]
     #运行获取sam结果和grounding结果
     def run(text_threshold:float,box_threshold:float):
         try:
@@ -82,7 +98,7 @@ def GroundingDINO_SAM2(image,text_prompt:str):
         """
         Visualize image with supervision useful API
         """
-        img = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
+        img = cv2.cvtColor(np.array(original), cv2.COLOR_RGB2BGR)
         
         # 创建检测结果对象
         detections = sv.Detections(
@@ -100,11 +116,11 @@ def GroundingDINO_SAM2(image,text_prompt:str):
         cut_out_img=[]              #扣除对应目标的原图
         for i in range(len(detections)):
             mask = detections.mask[i]
+            mask=  MaskToGlobal(mask,crop_box,original.size)
             x1, y1, x2, y2 = detections.xyxy[i].astype(int)
-
+            x1,y1,x2,y2=x1+ox,y1+oy,x2+ox,y2+oy
             # 原图 RGB
             rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-
             # 1. 提取掩码区域图像（透明背景）
             extracted_mask = np.zeros((img.shape[0], img.shape[1], 4), dtype=np.uint8)
             extracted_mask[mask] = np.concatenate([
@@ -180,7 +196,7 @@ def GroundingDINO_SAM2(image,text_prompt:str):
     #
     def EnsureGet(text_threshold,box_threshold):
         if text_threshold<0.0 or box_threshold<0.0:
-            return None,None,None,None
+            return None
         try:
             return run(text_threshold,box_threshold)
         except Exception as e:
@@ -205,5 +221,6 @@ if __name__=="__main__":
     while True:
         path=input("path:")
         prompt=input("prompt:")
-        res=GroundingDINO_SAM2(Image.open(path).convert("RGB"),prompt)["cutOut_img"]
+        res=GroundingDINO_SAM2(Image.open(path).convert("RGB"),prompt)
+        res=res["cutOut_img"]
         res.save("output.png")

@@ -6,7 +6,7 @@ from LLM import *
 from VLM import *
 from Model import *
 from NegativeFeedback import *
-
+import ast
 def Process_Directly(image:Image.Image,task:str,neg_prompts:list,epoch:int,global_itr_cnt:int,dir:str):
     #直接编辑
     Debug("正在进行图像编辑...")
@@ -36,14 +36,21 @@ def Process_Remove(image:Image.Image,task:str,neg_prompts:list,epoch:int,global_
     Debug("正在获取移除的指定对象中...")
     target_object=json.loads(AnswerText(ObjectGet_Prompt,f"Now I give my edit task:{task}"))[0]
     Debug("移除的目标是:",target_object)
+    #如果已经进入负反馈,那么需要特殊处理
+    boxes=None
+    if global_itr_cnt>1:
+        #使用VLM框出指定区域
+        Debug("获取编辑区域中...")
+        boxes=GetROE(image,f"Please give the box of the target object.The object is:{target_object}")
+        Debug("编辑区域是:",boxes)
     #获取编辑区域
     Debug("正在标记删除对象...")
-    res=GroundingDINO_SAM2(image,target_object)
+    res=GroundingDINO_SAM2(image,target_object,boxes[0] if boxes else None)
     mask,cutout=res["white_mask"],res["cutOut_img"]
     DebugSaveImage(mask,f"mask_{epoch}_{global_itr_cnt}_{RandomImageFileName()}",dir)
     DebugSaveImage(cutout,f"cutout_{epoch}_{global_itr_cnt}_{RandomImageFileName()}",dir) 
     #局部补全
-    Debug("正在进行inpainting...")
+    Debug("正在进行图像编辑...")
     output_img=EditImage(cutout,f"please work in the area marked in red:{task}",neg_prompts)
     DebugSaveImage(output_img,f"edited_image_{epoch}_"+RandomImageFileName(),dir=dir)
     return output_img
@@ -68,4 +75,22 @@ def ProcessTask(image:Image.Image,task:str,task_type:str,neg_prompts:list,epoch:
         return Process_PerspectiveShift(image,task,neg_prompts,epoch,global_itr_cnt,dir)
     else:
         return Process_Else(image,task,neg_prompts,epoch,global_itr_cnt,dir)
-    
+
+#####################纹理修复
+def TextureFix(input_img:Image.Image,edited_img:Image.Image,task:str,neg_prompts:list):
+    #先判断哪些负反馈可以通过纹理修复进行消除
+    Debug("正在获取需要修复的地方...")
+    target_prompt=AnswerImage([input_img,edited_img],TextureFix_Prompt,f"My image-edit instruction is{task}.And my negtive prompts is{neg_prompts}")
+    fixing=ast.literal_eval(target_prompt)
+    Debug("需要修复纹理的地方:",fixing)
+    #如果不需要修复
+    if len(fixing)==0:
+        return input_img,10
+    #编辑图像
+    Debug("正在修复纹理...")
+    output_img=ImageFixByAPI([input_img,edited_img],f'''fixing the right image's texture by left image in the following perspective:" {fixing} " and don't change or add or delete anything ''')
+    Debug("修复完成")
+    Debug("正在打分...")
+    score=GetImageGlobalScore(input_img,output_img,task)[0]
+    Debug("打分完成")
+    return output_img,score

@@ -14,8 +14,8 @@ import threading
 os.system("rm -rf debug/")
 os.system("mkdir debug")
 DEVICE = "cuda" if cuda.is_available() else "cpu"
-TEST_MODE=True	#测试模式将验证测试机
-PARALLE_MODE=True  #并行测试所有的数据集
+TEST_MODE=False	#测试模式将验证测试机
+PARALLE_MODE=TEST_MODE and True  #并行测试所有的数据集
 THREAD_OBJECT=None if not PARALLE_MODE else threading.local() #存储线程级别的对象数据
 TEST_CNT=20
 DEBUG=True
@@ -109,8 +109,8 @@ Example_1:
     Output:
     {
         "score":5,
-        "negative_prompt": background changed ,
-        "positive_prompt": remove the dog clearly while keep other unchanged
+        "negative_prompt":"background changed" ,
+        "positive_prompt": "remove the dog clearly while keep other unchanged"
     }
 Example_2:
     tasks:add clouds in sky
@@ -118,8 +118,8 @@ Example_2:
     Output:
     {
         "score":3,
-        "negative_prompt":sun,
-        "positive_prompt": add clouds in sky while keep other unchanged
+        "negative_prompt":"sun",
+        "positive_prompt": "add clouds in sky while keep other unchanged"
     }
 Example_3:
     tasks:add some flowers in background,
@@ -127,8 +127,8 @@ Example_3:
     Output:
     {
         "score":0,
-        "negative_prompt":chrysanthemums,
-        "positive_prompt": add some flowers in background in particular ornamental flower
+        "negative_prompt":"chrysanthemums",
+        "positive_prompt": "add some flowers in background in particular ornamental flower"
     }
 Example_4:
     tasks:move man's hands over his head
@@ -136,8 +136,8 @@ Example_4:
     Output:
     {
         "score":0,
-        "negative_prompt":man's hands hang down,
-        "positive_prompt":move man's hands higher over his head 
+        "negative_prompt":"man's hands hang down",
+        "positive_prompt":"move man's hands higher over his head "
     }
 Example_5:
     tasks:add some steaks to the grill
@@ -145,8 +145,8 @@ Example_5:
     Output:
     {
         "score":0,
-        "negative_prompt":much red steak,
-        "positive_prompt":add some steaks to the grill while keep other steak's shape in good appearance
+        "negative_prompt":"much red steak",
+        "positive_prompt":"add some steaks to the grill while keep other steak's shape in good appearance"
     }
 Remember, you only need to give me the final score and negative prompt, no other responses, and your score can only be a specific number from 0 - 10!
 Remember,You don't need to give me any explanations in any other place such as after prompt or score
@@ -250,7 +250,7 @@ You are now an image object bounding box detection expert. I will provide you wi
     (2) For each result, provide a four-tuple (x0, y0, x1, y1), where each element is a floating-point number between 0 and 1, representing the relative position of the target from its top-left corner to bottom-right corner in the image.
     (3) The final result should follow the following format: [(ans0), (ans1), ...]
     (4) Each answer may represent an area as a mask for inpainting or an area bounding the target object.
-
+    (5) Separate each element with a comma
 Example:
     task:add some steaks on grill like others
     your answer:[(0.1,0.2,0.3,0.4),(0.2,0.2,0.3,0.3),(0.1,0.1,0.2,0.2)]  (These areas is empty and good enough to add one steak on it)
@@ -286,6 +286,21 @@ watermark, banner, extra digits, signature, subtitling, Bad anatomy, Bad proport
 Disconnected limbs, Disfigured, Extra arms, Extra limbs, Extra hands, Fused fingers, Gross proportions, 
 Long neck, Malformed limbs, Mutated, Mutated hands, Mutated limbs, Missing arms, Missing fingers, Poorly drawn hands, 
 Poorly drawn face, Nsfw, Uncensored, Cleavage, Nude, Nipples, Overexposed, Plain background, Grainy, Underexposed, Deformed structures
+'''
+################################纹理修复提示词
+TextureFix_Prompt='''
+You are now a master of image editing texture repair, and I'm going to give you the original image, the edited image, my image editing instructions, and the negative feedback that you need to determine which negative feedback can be eliminated by texture repair as a way of repairing the image texture.
+Specifically, you need to follow the following rules.
+(1) The set of textures you give that need to be repaired can only come from my negative feedback set.
+(2) You must give your answer in the following format
+    [area0,area1...]
+Example:
+    I give you instruction and negative feedback as.
+        instruction:remove the mobile phone in man's hand
+        negative feedback:["The face was distorted", "The colour of the vase was changed", "The position of the hand was changed"].
+    Your answer.
+    ["face", "vase"]
+You may not give any other answer than the required format answer.
 '''
 ################################调试函数
 def Debug(*msg):

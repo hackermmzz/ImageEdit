@@ -76,11 +76,21 @@ def ProcessImageEdit(img_path:str,prompt:str,dir:str):
                 Debug("指令优化耗时:",cost())
                 neg_prompts.append(neg_prompt)
                 continue
-                
+        #获取得分最高的图片
+        target_score,target_img=max(edited_images, key=lambda x: x[0])
+        #修复一下纹理损失，避免多轮下来纹理损失过度积累
+        cost=Timer()
+        Debug("正在进行纹理修复...")
+        res,score=TextureFix(input_img,target_img,task,neg_prompts)
+        Debug("纹理修复耗时:",cost())
+        DebugSaveImage(res,f"fixing_{epoch}.png",dir)
+        Debug("修复后全局打分为:",score)
+        if target_score<score:
+            target_img=res
         #下一个任务
+        input_img=target_img
         i+=1
         global_itr_cnt=0
-        input_img=max(edited_images, key=lambda x: x[0])[1]
         neg_prompts=[]
         edited_images=[]
         EpochBestImage.append(input_img)
@@ -107,7 +117,7 @@ def Run():
         try:
             img_path=input("请输入图片路径:")
             prompt=input("请输入编辑指令:")
-            ProcessImageEdit(img_path=img_path,prompt=prompt,idx=0)
+            ProcessImageEdit(img_path=img_path,prompt=prompt,dir="debug/")
         except Exception as e:
             print(e)
             return
