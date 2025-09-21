@@ -14,12 +14,12 @@ from Tips import *
 import random
 import threading
 ########################################################
-GroundingProcessor=AutoProcessor.from_pretrained("IDEA-Research/grounding-dino-base")
-GroundingModel=AutoModelForZeroShotObjectDetection.from_pretrained("IDEA-Research/grounding-dino-base").to(DEVICE).eval()
-SamModel=build_sam2("configs/sam2.1/sam2.1_hiera_l.yaml", "./Safetensors/SAM/sam2.1_hiera_large.pt", device=DEVICE).eval()
+GroundingProcessor=AutoProcessor.from_pretrained("Safetensors/GroundingDINO")
+GroundingModel=AutoModelForZeroShotObjectDetection.from_pretrained("Safetensors/GroundingDINO").to(DEVICE).eval()
+SamModel=build_sam2("configs/sam2.1/sam2.1_hiera_l.yaml", "Safetensors/SAM/sam2.1_hiera_large.pt", device=DEVICE).eval()
 SamPredictor=SAM2ImagePredictor(SamModel)
-CLIPProcessor=CLIPProcessor.from_pretrained("openai/clip-vit-large-patch14")
-CLIPModel = CLIPModel.from_pretrained("openai/clip-vit-large-patch14").to(DEVICE).eval()
+CLIPProcessor=CLIPProcessor.from_pretrained("Safetensors/CLIP")
+CLIPModel = CLIPModel.from_pretrained("Safetensors/CLIP").to(DEVICE).eval()
 CLIPLock=threading.Lock()
 SAMLock=threading.Lock()
 GroundingDINOLock=threading.Lock()

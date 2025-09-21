@@ -27,6 +27,9 @@ def ProcessImageEdit(img_path:str,prompt:str,dir:str):
     tasks=GetTask(ori_image,prompt)
     Debug("任务细分耗时:",cost())
     Debug("任务细分:",tasks)
+    ##########################################写入文件
+    with open(dir+"tasks.txt","w",encoding="utf-8") as f:
+        f.write(str(tasks))
     ##########################################第二层：任务链
     input_img=ori_image
     i=0
