@@ -10,39 +10,33 @@ import ast
 def Process_Directly(image:Image.Image,task:str,neg_prompts:list,epoch:int,global_itr_cnt:int,dir:str):
     #直接编辑
     Debug("正在进行图像编辑...")
-    output_img=EditImage(image,f"Edit in red boxes that {task}",neg_prompts)
+    output_img=EditImage(image,task,neg_prompts)
     output_img=output_img.resize(image.size)
     Debug("图像编辑完成!")
-    DebugSaveImage(output_img,f"edited_image_{epoch}_"+RandomImageFileName(),dir=dir)
+    DebugSaveImage(output_img,f"edited_image_{epoch}_{global_itr_cnt}.png",dir=dir)
     return output_img
 
-def Process_Else(image:Image.Image,task:str,neg_prompts:list,epoch:int,global_itr_cnt:int,dir:str):
+def Process_ByBox(image:Image.Image,task:str,neg_prompts:list,epoch:int,global_itr_cnt:int,dir:str):
     ###########编辑图像
     Debug("获取编辑区域中...")
     boxes=GetROE(image,f"Now I will give you the image-edit instruction:{task}.You should give me the fittable answer as a region for editing")
     Debug("编辑区域为:",boxes)
     img=DrawRedBox(image,boxes)
-    DebugSaveImage(img,f"box_{epoch}_{global_itr_cnt}_{RandomImageFileName()}",dir)
-    Debug("正在进行图像编辑...")
-    output_img=EditImage(img,f"Edit in red boxes that {task}",neg_prompts)
-    #将output和input缩放到同一个尺寸
-    output_img=output_img.resize(image.size)
-    Debug("图像编辑完成!")
-    DebugSaveImage(output_img,f"edited_image_{epoch}_"+RandomImageFileName(),dir=dir)
-    return output_img
+    DebugSaveImage(img,f"box_{epoch}_{global_itr_cnt}.png",dir)
+    return Process_Directly(img,f"Edit in red boxes that {task}",neg_prompts,epoch,global_itr_cnt,dir)
+
+def Process_Add(image:Image.Image,task:str,neg_prompts:list,epoch:int,global_itr_cnt:int,dir:str):
+    return Process_ByBox(image,task,neg_prompts,epoch,global_itr_cnt,dir)
 
 def Process_Remove(image:Image.Image,task:str,neg_prompts:list,epoch:int,global_itr_cnt:int,dir:str):
     #获取移除对象
     Debug("正在获取移除的指定对象中...")
     target_object=json.loads(AnswerText(ObjectGet_Prompt,f"Now I give my edit task:{task}"))[0]
     Debug("移除的目标是:",target_object)
-    #如果已经进入负反馈,那么需要特殊处理
-    boxes=None
-    if global_itr_cnt>1:
-        #使用VLM框出指定区域
-        Debug("获取编辑区域中...")
-        boxes=GetROE(image,f"Please give the box of the target object.The object is:{target_object}")
-        Debug("编辑区域是:",boxes)
+    #使用VLM框出指定区域
+    Debug("获取编辑区域中...")
+    boxes=GetROE(image,f"Please give the box of the target object.The object is:{target_object}")
+    Debug("编辑区域是:",boxes)
     #获取编辑区域
     Debug("正在标记删除对象...")
     res=GroundingDINO_SAM2(image,target_object,boxes[0] if boxes else None)
@@ -50,13 +44,10 @@ def Process_Remove(image:Image.Image,task:str,neg_prompts:list,epoch:int,global_
     DebugSaveImage(mask,f"mask_{epoch}_{global_itr_cnt}_{RandomImageFileName()}",dir)
     DebugSaveImage(cutout,f"cutout_{epoch}_{global_itr_cnt}_{RandomImageFileName()}",dir) 
     #局部补全
-    Debug("正在进行图像编辑...")
-    output_img=EditImage(cutout,f"please work in the area marked in red:{task}",neg_prompts)
-    DebugSaveImage(output_img,f"edited_image_{epoch}_"+RandomImageFileName(),dir=dir)
-    return output_img
+    return Process_Directly(cutout,f"Please work in the area marked in red:{task}",neg_prompts,epoch,global_itr_cnt,dir)
 
-def Process_Add(image:Image.Image,task:str,neg_prompts:list,epoch:int,global_itr_cnt:int,dir:str):
-    return Process_Else(image,task,neg_prompts,epoch,global_itr_cnt,dir)
+def Process_Replace(image:Image.Image,task:str,neg_prompts:list,epoch:int,global_itr_cnt:int,dir:str):
+    return Process_ByBox(image,task,neg_prompts,epoch,global_itr_cnt,dir)
 
 def Process_GlobalStyleTransfer(image:Image.Image,task:str,neg_prompts:list,epoch:int,global_itr_cnt:int,dir:str):
     return Process_Directly(image,task,neg_prompts,epoch,global_itr_cnt,dir)
@@ -64,18 +55,45 @@ def Process_GlobalStyleTransfer(image:Image.Image,task:str,neg_prompts:list,epoc
 def Process_PerspectiveShift(image:Image.Image,task:str,neg_prompts:list,epoch:int,global_itr_cnt:int,dir:str):
     return Process_Directly(image,task,neg_prompts,epoch,global_itr_cnt,dir)
 
-def ProcessTask(image:Image.Image,task:str,task_type:str,neg_prompts:list,epoch:int,global_itr_cnt:int,dir:str)->Image.Image:
-    if task_type=="remove":
-        return Process_Remove(image,task,neg_prompts,epoch,global_itr_cnt,dir)
-    elif task_type=="add":
-        return Process_Add(image,task,neg_prompts,epoch,global_itr_cnt,dir)
-    elif task_type=="global_style_transfer":
-        return Process_GlobalStyleTransfer(image,task,neg_prompts,epoch,global_itr_cnt,dir)
-    elif task_type=="perspective_shift":
-        return Process_PerspectiveShift(image,task,neg_prompts,epoch,global_itr_cnt,dir)
-    else:
-        return Process_Else(image,task,neg_prompts,epoch,global_itr_cnt,dir)
+def Process_AttributeChange(image:Image.Image,task:str,neg_prompts:list,epoch:int,global_itr_cnt:int,dir:str):
+    return Process_ByBox(image,task,neg_prompts,epoch,global_itr_cnt,dir)
 
+def Process_Move(image:Image.Image,task:str,neg_prompts:list,epoch:int,global_itr_cnt:int,dir:str):
+    Debug("正在获取编辑区域...")
+    boxes=GetROE(image,"You should give me 2 box the first is object and the second is the region I should move to and this is my task:{task}")
+    if len(boxes)!=2:
+        Debug("获取移动box失败")
+    else:
+        Debug("获取移动box成功:",boxes)
+    img=DrawRedBox(image,boxes)
+    DebugSaveImage(img,f"box_{epoch}_{global_itr_cnt}.png",dir)
+    return Process_Directly(img,f"Edit in red boxes that {task}",neg_prompts,epoch,global_itr_cnt,dir)
+
+def Process_Modify(image:Image.Image,task:str,neg_prompts:list,epoch:int,global_itr_cnt:int,dir:str):
+    return Process_ByBox(image,task,neg_prompts,epoch,global_itr_cnt,dir)
+
+def Process_BackgroundChange(image:Image.Image,task:str,neg_prompts:list,epoch:int,global_itr_cnt:int,dir:str):
+    return Process_Directly(image,task,neg_prompts,epoch,global_itr_cnt,dir)
+
+def ProcessTask(image:Image.Image,task:str,task_type:str,neg_prompts:list,epoch:int,global_itr_cnt:int,dir:str)->Image.Image:
+    mp={
+        "add":Process_Add,
+        "remove":Process_Remove,
+        "replace":Process_Replace,
+        "global_style_transfer":Process_GlobalStyleTransfer,
+        "perspective_shift":Process_PerspectiveShift,
+        "attribute_change":Process_AttributeChange,
+        "move":Process_Move,
+        "modify":Process_Modify,
+        "background_change":Process_BackgroundChange
+    }
+    
+    if task_type in mp:
+        fun=mp[task_type]
+        return fun(image,task,neg_prompts,epoch,global_itr_cnt,dir)
+    else:
+        Debug(f"任务异常!任务为: {task} ,类型为: {task_type} ")
+        return Process_Directly(image,task,task_type,neg_prompts,epoch,global_itr_cnt,dir)
 #####################纹理修复
 def TextureFix(input_img:Image.Image,edited_img:Image.Image,task:str,neg_prompts:list):
     output_img=ImageFixByAPI([input_img,edited_img],f'''fixing the right image's texture by left image and don't change or add or remove anything ''')

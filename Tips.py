@@ -14,7 +14,7 @@ import threading
 os.system("rm -rf debug/")
 os.system("mkdir debug")
 DEVICE = "cuda" if cuda.is_available() else "cpu"
-TEST_MODE=False	#测试模式将验证测试机
+TEST_MODE=True	#测试模式将验证测试机
 PARALLE_MODE=TEST_MODE and True  #并行测试所有的数据集
 THREAD_OBJECT=None if not PARALLE_MODE else threading.local() #存储线程级别的对象数据
 TEST_CNT=20
@@ -29,6 +29,8 @@ ClipScoreThreshold=0.21
 Enable_Local_LLM=False
 Enable_Local_VLM=False
 Enable_Local_ImageEdit=False
+Enable_TaskPolish=False
+Enable_TextureFix=False
 #################the type of task
 TaskType=[
         "add",
@@ -38,7 +40,8 @@ TaskType=[
         "perspective_shift",
         "attribute_change",
         "move",
-        "modify"
+        "modify",
+        "background_change"
         ]
 TaskTypeExpress=[
     "Introduceanewobject,person,orelementintotheimage,e.g.:addacarontheroad",
@@ -46,9 +49,10 @@ TaskTypeExpress=[
     "Substitute one object in the image with a different object, e.g.: replace the coffee with an apple",
     "Modify the entire image to adopt a different visual style, e.g.: make the style of the image to cartoon",
     "Change the perspective of the image,e.g.: Overlooking the whole playground",
-    "Change object's attribute such as it's color、size、",
+    "Change object's attribute such as it's color、size and texture,e.g.: Change ball's color to red and make it bigger",
     "Change the spatial position of an object within the image, e.g.: move the plane to the left",
-    "Change object's action or style"
+    "Change object's action 、style、expression、apperance",
+    "Change the background of the image,e.g.: Change the background to a forest"
 ]
 TaskType=[f"{TaskType[i]} : ( {TaskTypeExpress[i]} )" for i in range(len(TaskType))]
 ################对任务进行细分
@@ -301,7 +305,8 @@ ObjectGet_Prompt='''
     Remember, don't answer anything other than what I've specified!
 '''
 ################################预定义的反面提示词
-PreDefine_NegPrompt='''
+PreDefine_NegPrompt=''''''
+'''
 Worst quality, Normal quality, Low quality, Low res, Blurry, Jpeg artifacts, Grainy, text, logo, 
 watermark, banner, extra digits, signature, subtitling, Bad anatomy, Bad proportions, Deformed, 
 Disconnected limbs, Disfigured, Extra arms, Extra limbs, Extra hands, Fused fingers, Gross proportions, 

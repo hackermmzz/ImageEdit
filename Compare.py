@@ -75,7 +75,7 @@ def compare(origin, edited_image, ins: str):
     return f"比较结果: {ins}"
 
 def GetMyData():
-    path = r"C:/Users/mmzz/Desktop/debug1"
+    path = r"C:/Users/mmzz/Desktop/debug0/debug"
     ret = {}
     for folder in os.listdir(path):
         pp = os.path.join(path, folder, "Total")
@@ -103,7 +103,7 @@ def GetMyData():
     return ret
 
 def GetVincieData():
-    path = r"C:/Users/mmzz/Desktop/debug"
+    path = r"C:/Users/mmzz/Desktop/debug1/debug"
     ret = {}
     for folder in os.listdir(path):
         pp = os.path.join(path, folder)

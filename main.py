@@ -44,21 +44,20 @@ def ProcessImageEdit(img_path:str,prompt:str,dir:str):
         Debug(f"第{epoch}次指令编辑,第{global_itr_cnt}次尝试开始!")
         #任务优化
         if global_itr_cnt==1:
-            Debug("正在进行任务优化...")
-            cost=Timer()
-            task=polish_edit_prompt(input_img,tasks[i][0])
-            Debug("指令优化耗时:",cost())
-            Debug(f"优化指令为:{task}")
-        #divide into four class
+            if Enable_TaskPolish:
+                Debug("正在进行任务优化...")
+                cost=Timer()
+                task=polish_edit_prompt(input_img,tasks[i][0])
+                Debug("指令优化耗时:",cost())
+                Debug(f"优化指令为:{task}")
+            else:
+                task=tasks[i][0]
+        #任务处理
         output_img=None
         task_type=tasks[i][1]
-        if task_type in TaskType:
-            cost=Timer()
-            output_img=ProcessTask(input_img,task,task_type,neg_prompts,epoch,global_itr_cnt,dir)
-            Debug("指令执行耗时:",cost())
-        else:
-            Debug(f"unexpect task type of:{task_type} and the task is{task}")
-            return
+        cost=Timer()
+        output_img=ProcessTask(input_img,task,task_type,neg_prompts,epoch,global_itr_cnt,dir)
+        Debug("指令执行耗时:",cost())
         ###########负反馈
         cost=Timer()
         res=NegativeFeedback(task,input_img,output_img,global_itr_cnt,dir)
@@ -79,14 +78,15 @@ def ProcessImageEdit(img_path:str,prompt:str,dir:str):
         #获取得分最高的图片
         target_score,target_img=max(edited_images, key=lambda x: x[0])
         #修复一下纹理损失，避免多轮下来纹理损失过度积累
-        cost=Timer()
-        Debug("正在进行纹理修复...")
-        res,score=TextureFix(input_img,target_img,task,neg_prompts)
-        Debug("纹理修复耗时:",cost())
-        DebugSaveImage(res,f"fixing_{epoch}.png",dir)
-        Debug("修复后全局打分为:",score)
-        if target_score<score:
-            target_img=res
+        if Enable_TextureFix:
+            cost=Timer()
+            Debug("正在进行纹理修复...")
+            res,score=TextureFix(input_img,target_img,task,neg_prompts)
+            Debug("纹理修复耗时:",cost())
+            DebugSaveImage(res,f"fixing_{epoch}.png",dir)
+            Debug("修复后全局打分为:",score)
+            if target_score<score:
+                target_img=res
         #下一个任务
         input_img=target_img
         i+=1
