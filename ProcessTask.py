@@ -78,6 +78,8 @@ def ProcessTask(image:Image.Image,task:str,task_type:str,neg_prompts:list,epoch:
 
 #####################纹理修复
 def TextureFix(input_img:Image.Image,edited_img:Image.Image,task:str,neg_prompts:list):
+    output_img=ImageFixByAPI([input_img,edited_img],f'''fixing the right image's texture by left image and don't change or add or remove anything ''')
+    return output_img,10
     #先判断哪些负反馈可以通过纹理修复进行消除
     Debug("正在获取需要修复的地方...")
     target_prompt=AnswerImage([input_img,edited_img],TextureFix_Prompt,f"My image-edit instruction is{task}.And my negtive prompts is{neg_prompts}")

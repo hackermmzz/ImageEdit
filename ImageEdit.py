@@ -65,7 +65,6 @@ def ImageEditByAPI(image,prompt:str,neg_prompt:str)->Image.Image:
     if w*h<921600:
         scale=(921600/(w*h))**(0.5)
         input=image.resize((int(w*scale)+2,int(h*scale)+2))
-    
     imagesResponse = client.images.generate( 
         model="doubao-seedream-4-0-250828", 
         prompt=f'''{prompt} and don't occur following cases: "{neg_prompt}" ''',
