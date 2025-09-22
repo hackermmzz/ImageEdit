@@ -170,3 +170,4 @@ data/
 checkpoints/
 Safetensors/
 packRes.py
+*.zip
