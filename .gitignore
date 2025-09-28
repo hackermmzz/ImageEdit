@@ -171,3 +171,5 @@ checkpoints/
 Safetensors/
 packRes.py
 *.zip
+test.py
+Nano-150k/

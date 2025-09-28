@@ -7,8 +7,7 @@ from VLM import *
 from Model import *
 from NegativeFeedback import *
 from ProcessTask import *
-from concurrent.futures import ThreadPoolExecutor
-from functools import partial
+from Prefict import *
 #初始化
 def Init():
    pass
@@ -113,6 +112,7 @@ def ProcessImageEdit(img_path:str,prompt:str,dir:str):
     Debug("整体耗时:",cost_total())
 #运行逻辑
 def Run():
+    data=None
     if not TEST_MODE:
         try:
             img_path=input("请输入图片路径:")
@@ -122,50 +122,29 @@ def Run():
             print(e)
             return
     else:
-        #获取所有待测试的数据
-        all=[x for x in range(1,4091)]
-        target=[]
-        while len(all)!=0:
-            x=random.randint(0,len(all)-1)
-            target.append(all[x])
-            all=all[:x]+all[x+1:]
-        tasks=[]
-        global TEST_CNT
-        while len(target) and TEST_CNT>0:
-            TEST_CNT-=1
-            idx=target.pop()
-            def Task(idx):
-                try:
-                    #创建目录
-                    dir=f"{DEBUG_DIR}/{idx}/"
-                    os.makedirs(dir)
-                    os.makedirs(f"{dir}/Total")
-                    #创建日志文件
-                    if PARALLE_MODE:
-                        THREAD_OBJECT.logfile=sys.stdout if (not DEBUG or not DEBUG_OUTPUT) else open(f"{dir}/debug.txt","w",encoding="utf-8")
-                    #
-                    target_img=f"data/{idx}/0.jpg"
-                    target_prompt_file=f"data/{idx}/ins.txt"
-                    if not os.path.exists(target_img) or not os.path.exists(target_prompt_file):
-                        raise(f"no such {idx} file or directory!")
-                    #读取指令
-                    with open(target_prompt_file,"r") as f:
-                        target_prompt=f.read()
-                    Debug("-"*100)
-                    Debug(f"第{idx}轮图像编辑开始!")
-                    ProcessImageEdit(target_img,target_prompt,dir)
-                    Debug(f"第{idx}轮图像处理成功!")
-                except Exception as e:
-                    Debug(e)
-                    Debug(f"第{idx}轮图像处理失败!")
-            tasks.append(partial(Task,idx=idx))
-        #如果并行，则开启多线程
-        if PARALLE_MODE:
-            with ThreadPoolExecutor(max_workers=min(len(tasks),65535)) as executor:
-                futures = [executor.submit(task) for task in tasks]
-        else:
-            for task in tasks:
-                task()
+       # data=PredictByVINCIE()
+        data=PredictByNanoBanana()
+    #构建任务
+    tasks=[]
+    def Task(input_img:str,tasks:str,dir:str):
+        os.makedirs(dir)
+        os.makedirs(f"{dir}/Total")
+        THREAD_OBJECT.logfile=open(f"{dir}/debug.txt","w",encoding="utf-8") if PARALLE_MODE else sys.stdout
+        try:
+            Debug("处理开始")
+            ProcessImageEdit(input_img,tasks,dir)
+            Debug("处理成功")
+        except Exception as e:
+            Debug("处理失败:",e)
+    for x in data:
+        tasks.append(partial(Task,input_img=x["input_img"],tasks=x["task"],dir=x["dir"]))
+    #如果并行，则开启多线程
+    if PARALLE_MODE:
+        with ThreadPoolExecutor(max_workers=min(len(tasks),65535)) as executor:
+            futures = [executor.submit(task) for task in tasks]
+    else:
+        for task in tasks:
+            task()
 if __name__=="__main__":
     Init()#初始化
     Run()#运行

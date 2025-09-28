@@ -165,7 +165,7 @@ if __name__=="__main__":
             image=Image.open(path).convert("RGB")
             prompt=input("prompt:")
             neg_prompt=input("neg_prompt:")
-            res=EditImage(image,prompt,[neg_prompt])
+            res=ImageEditByPipe(image,prompt,[neg_prompt])
             res.save(f"debug/{RandomImageFileName()}")
         except Exception as e:
             print("error:",e)
