@@ -7,7 +7,7 @@ from VLM import *
 from Model import *
 from NegativeFeedback import *
 from ProcessTask import *
-from Prefict import *
+from Predict import *
 #初始化
 def Init():
    pass
@@ -117,7 +117,7 @@ def Run():
         try:
             img_path=input("请输入图片路径:")
             prompt=input("请输入编辑指令:")
-            ProcessImageEdit(img_path=img_path,prompt=prompt,dir="debug/")
+            data=[{"input_img":img_path,"task":prompt,"dir":f"{DEBUG_DIR}/1"}]
         except Exception as e:
             print(e)
             return

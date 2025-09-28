@@ -1,73 +1,67 @@
-# 科研训练图像编辑系统
+# ImageEdit Project
 
-本项目是一个多模块的图像智能编辑与评估系统，集成了大模型驱动的任务分解、编辑指令优化、自动分割、区域打分、专家评测等功能，适用于科研训练和自动化图像处理任务。
+## 项目简介
+这是一个基于SAM2模型的图像编辑工具集，包含自动掩码生成、图像预测、视频预测等功能模块。项目采用模块化设计，支持多种图像处理任务。
 
-## 目录结构
+## 功能特性
+1. 自动掩码生成
+2. 图像预测
+3. 视频预测
+4. 负反馈处理
+5. 数据集下载
 
-```
-├── main.py                # 主入口，包含流程控制与数据处理
-├── ImageEdit.py           # 图像编辑API，基于Qwen-Image-Edit等模型
-├── GroundedSam2.py        # 基于GroundingDINO和SAM2的目标检测与分割
-├── Model.py               # 任务分解、打分、场景描述等专家模块
-├── Tips.py                # 提示词与评分规则
-├── VLM.py                 # 多模态大模型接口
-├── LLM.py                 # 文本大模型接口
-├── test.py                # 测试与调试脚本
-├── sam2/                  # SAM2相关源码与工具
-├── checkpoints/           # 预训练模型权重
-├── data/                  # 数据集与样例
-├── datasets/              # 原始/处理后数据集
-├── debug/                 # 调试输出
-├── tmp/                   # 临时文件
-└── README.md              # 项目说明
+## 安装指南
+```bash
+# 安装依赖
+pip install -r requirements.txt
+
+# 安装SAM2模型
+cd sam2
+pip install -e .
 ```
 
-## 主要功能
+## 使用示例
+```bash
+# 运行主程序 (支持不同配置文件)
+python main.py --config sam2/sam2_hiera_{b+,l,s,t}.yaml
 
-- **自动任务分解**：输入编辑指令，自动拆分为多轮子任务。
-- **场景理解**：对输入图片进行全局与局部内容分析，生成详细描述。
-- **智能编辑**：调用大模型自动优化编辑指令，提升可执行性和视觉效果。
-- **目标检测与分割**：结合GroundingDINO和SAM2，自动生成精准掩码。
-- **区域与全局打分**：对编辑结果进行局部和全局评分，辅助优化。
-- **专家评测**：多轮编辑后自动综合评估，输出最终分数与优化建议。
-- **调试与测试**：支持批量数据处理与自动化测试。
+# 图像预测 (支持多种输入格式)
+python Predict.py --image_path ./data/test.jpg --output_dir ./results --file_type jpg
 
-## 环境依赖
+# 视频处理示例
+python ProcessTask.py --video_path ./data/test.mp4 --task_type mask_generation
+```
 
+## 技术架构
+### 模块设计
+- **SAM2核心模块** (`sam2/`)
+  - `mask_decoder.py`: 掩码解码器
+  - `prompt_encoder.py`: 提示编码器
+  - `automatic_mask_generator.py`: 自动掩码生成器
+- **应用层模块**
+  - `ImageEdit.py`: 图像编辑核心逻辑
+  - `Predict.py`: 预测接口封装
+
+## 环境要求
 - Python 3.8+
-- torch、transformers、diffusers、Pillow、numpy、opencv-python
-- 需下载相关预训练模型权重至 `checkpoints/` 目录
+- PyTorch 2.0+
+- CUDA 11.7+ (推荐GPU环境)
+- 其他依赖: 
+```bash
+pip install torch torchvision torchaudio
+```
+├── data/               # 数据存储目录
+├── datasets/           # 数据集目录
+├── Models.py           # 模型定义文件
+├── ImageEdit.py        # 图像编辑核心模块
+└── run.sh              # 启动脚本
+```
 
-## 快速开始
+## 贡献指南
+1. Fork项目
+2. 创建新分支
+3. 提交代码更改
+4. 创建Pull Request
 
-1. **安装依赖**  
-   推荐使用虚拟环境：
-   ```sh
-   pip install -r requirements.txt
-   ```
-
-2. **准备模型权重**  
-   下载SAM2、GroundingDINO等权重，放入 `checkpoints/` 目录。
-
-3. **运行主流程**  
-   ```sh
-   python main.py
-   ```
-   按提示输入图片路径和编辑指令，系统将自动完成分解、编辑、评分与保存。
-
-4. **批量测试**  
-   将数据集放入 `data/` 目录，设置 `TEST_MODE=True` 后运行 `main.py` 可自动批量处理。
-
-## 进阶用法
-
-- 修改 `Tips.py` 可自定义评分规则和提示词。
-- 编辑 `Model.py` 可扩展专家模块和打分逻辑。
-- 使用 `test.py` 进行单步调试和分割效果测试。
-
-## 致谢
-
-本项目部分代码参考了 [facebookresearch/SAM2](https://github.com/facebookresearch/sam2) 及相关开源模型，感谢社区贡献。
-
----
-
-如有问题或建议，欢迎联系作者或提
+## 许可证
+MIT License

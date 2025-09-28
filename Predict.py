@@ -55,10 +55,7 @@ def PredictByNanoBanana():
         target=all[idx]
         #创建目录
         dir=f"{DEBUG_DIR}/{idx}/"
-        try:
-           ret.append({"task":target["instruction"],"input_img":target["input_images"][0],"dir":dir})
-        except Exception as e:
-            pass
+        ret.append({"task":target["task"],"input_img":target["input"],"dir":dir})
     return ret
 #################################
 if __name__=="__main__":
