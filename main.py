@@ -27,7 +27,7 @@ def ProcessImageEdit(img_path:str,prompt:str,dir:str):
     Debug("任务细分耗时:",cost())
     Debug("任务细分:",tasks)
     ##########################################写入文件
-    with open(dir+"tasks.txt","w",encoding="utf-8") as f:
+    with open(dir+"/tasks.txt","w",encoding="utf-8") as f:
         f.write(str(tasks))
     ##########################################第二层：任务链
     input_img=ori_image
@@ -129,7 +129,8 @@ def Run():
     def Task(input_img:str,tasks:str,dir:str):
         os.makedirs(dir)
         os.makedirs(f"{dir}/Total")
-        THREAD_OBJECT.logfile=open(f"{dir}/debug.txt","w",encoding="utf-8") if PARALLE_MODE else sys.stdout
+        if PARALLE_MODE:
+            THREAD_OBJECT.logfile=open(f"{dir}/debug.txt","w",encoding="utf-8")
         try:
             Debug("处理开始")
             ProcessImageEdit(input_img,tasks,dir)

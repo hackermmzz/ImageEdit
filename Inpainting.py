@@ -6,7 +6,6 @@ from diffusers import AutoPipelineForInpainting
 import torch
 import random
 import cv2
-from VLM import GetROE
 from GroundedSam2 import *
 from diffusers.utils import load_image, make_image_grid
 ####################################
@@ -41,17 +40,6 @@ def GenerateMask(image: Image.Image,boxes) -> Image.Image:
                 new_pixels[x, y] = (255, 255, 255)  # 纯白
     return new_img.convert("L")
 
-######################################get box
-
-def DrawRedBox(image, boxes, width=3):
-    # 拷贝原图避免修改原图像
-    image_copy = image.copy()
-    # 创建可绘制对象
-    draw = ImageDraw.Draw(image_copy)
-    # 画红框
-    for box in boxes:
-        draw.rectangle(box, outline="red", width=width)
-    return image_copy
 ######################################
 if __name__=="__main__":
     while True:

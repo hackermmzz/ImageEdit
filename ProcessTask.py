@@ -19,7 +19,7 @@ def Process_Directly(image:Image.Image,task:str,neg_prompts:list,epoch:int,globa
 def Process_ByBox(image:Image.Image,task:str,neg_prompts:list,epoch:int,global_itr_cnt:int,dir:str):
     ###########编辑图像
     Debug("获取编辑区域中...")
-    boxes=GetROE(image,f"Now I will give you the image-edit instruction:{task}.You should give me the fittable answer as a region for editing")
+    boxes=GetROEChecked(image,f"Now I will give you the image-edit instruction:{task}.You should give me the fittable answer as a region for editing")
     Debug("编辑区域为:",boxes)
     img=DrawRedBox(image,boxes)
     DebugSaveImage(img,f"box_{epoch}_{global_itr_cnt}.png",dir)

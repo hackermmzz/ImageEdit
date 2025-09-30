@@ -10,11 +10,12 @@ import base64
 from PIL import Image
 import time
 import threading
+from PIL import Image,ImageFilter,ImageDraw
 ###############全局配置
 os.system("rm -rf debug/")
 os.system("mkdir debug")
 DEVICE = "cuda" if cuda.is_available() else "cpu"
-TEST_MODE=True	#测试模式将验证测试机
+TEST_MODE=False	#测试模式将验证测试机
 PARALLE_MODE=TEST_MODE and True  #并行测试所有的数据集
 THREAD_OBJECT=None if not PARALLE_MODE else threading.local() #存储线程级别的对象数据
 TEST_CNT=1
@@ -389,3 +390,12 @@ class Timer():
          interval=time.time()-self.beg
          return str(int(interval))+"秒"
      
+def DrawRedBox(image, boxes, width=3):
+    # 拷贝原图避免修改原图像
+    image_copy = image.copy()
+    # 创建可绘制对象
+    draw = ImageDraw.Draw(image_copy)
+    # 画红框
+    for box in boxes:
+        draw.rectangle(box, outline="red", width=width)
+    return image_copy
