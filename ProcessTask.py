@@ -17,13 +17,16 @@ def Process_Directly(image:Image.Image,task:str,neg_prompts:list,epoch:int,globa
     return output_img
 
 def Process_ByBox(image:Image.Image,task:str,neg_prompts:list,epoch:int,global_itr_cnt:int,dir:str):
-    ###########编辑图像
-    Debug("获取编辑区域中...")
-    boxes=GetROEChecked(image,f"Now I will give you the image-edit instruction:{task}.You should give me the fittable answer as a region for editing")
-    Debug("编辑区域为:",boxes)
-    img=DrawRedBox(image,boxes)
-    DebugSaveImage(img,f"box_{epoch}_{global_itr_cnt}.png",dir)
-    return Process_Directly(img,f"Edit in red boxes that {task}",neg_prompts,epoch,global_itr_cnt,dir)
+    ###########先判断是否需要画框
+    check=AnswerImage([image],"You are now an image object bounding box detection expert.You just answer me yes or no.If you think I should bound the target output yes otherwise output no,and remember don't output any other except yes or no",task)
+    if "yes" in check.lower():
+        ###########编辑图像
+        Debug("获取编辑区域中...")
+        boxes=GetROE(image,f"Now I will give you the image-edit instruction:{task}.You should give me the fittable answer as a region for editing")
+        Debug("编辑区域为:",boxes)
+        image=DrawRedBox(image,boxes)
+        DebugSaveImage(image,f"box_{epoch}_{global_itr_cnt}.png",dir)
+    return Process_Directly(image,f"Edit in red boxes that {task}",neg_prompts,epoch,global_itr_cnt,dir)
 
 def Process_Add(image:Image.Image,task:str,neg_prompts:list,epoch:int,global_itr_cnt:int,dir:str):
     return Process_ByBox(image,task,neg_prompts,epoch,global_itr_cnt,dir)

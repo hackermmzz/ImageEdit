@@ -55,6 +55,7 @@ def ProcessImageEdit(img_path:str,prompt:str,dir:str):
         output_img=None
         task_type=tasks[i][1]
         cost=Timer()
+        #获取任务处理
         output_img=ProcessTask(input_img,task,task_type,neg_prompts,epoch,global_itr_cnt,dir)
         Debug("指令执行耗时:",cost())
         ###########负反馈

@@ -114,7 +114,7 @@ def AnswerImage(images:list,role_tip:str,question:str):
         if Enable_Local_VLM:
             return AnswerImageByPipe(images,role_tip,question)
         else:
-            return AnswerImageByAPI(images,role_tip,question,client0,"doubao-seed-1-6-vision-250815")
+            return AnswerImageByAPI(images,role_tip,question,client0,"doubao-seed-1-6-250615")
     except Exception as e:
         Debug("AnswerImage:",e)
         return AnswerImage(images,role_tip,question)
@@ -171,7 +171,7 @@ def GetImageScore(images:list,role_tip:str,question:str):
         except Exception as e:
             return None
     tasks=[
-        partial(AnswerImageByAPI,client=client0,model="doubao-seed-1-6-vision-250815"),#调用基础的模型
+        partial(AnswerImageByAPI,client=client0,model="doubao-seed-1-6-250615"),#调用基础的模型
         partial(AnswerImageByAPI,client=client1,model="qwen-vl-max"),
         partial(AnswerImageByAPI,client=client1,model="qwen-vl-plus"),
     ]

@@ -1,7 +1,6 @@
 from LLM import *
 from VLM import *
 import threading
-from Inpainting import *
 #获取任务
 def GetTask(image,description:str):
     answer=AnswerImage([image],Expert1_Prompt,f"My task is:{description}")

@@ -15,10 +15,10 @@ from PIL import Image,ImageFilter,ImageDraw
 os.system("rm -rf debug/")
 os.system("mkdir debug")
 DEVICE = "cuda" if cuda.is_available() else "cpu"
-TEST_MODE=False	#测试模式将验证测试机
+TEST_MODE=True	#测试模式将验证测试机
 PARALLE_MODE=TEST_MODE and True  #并行测试所有的数据集
 THREAD_OBJECT=None if not PARALLE_MODE else threading.local() #存储线程级别的对象数据
-TEST_CNT=1
+TEST_CNT=20
 DEBUG=True
 DEBUG_LOCK=None if not DEBUG else threading.Lock()
 DEBUG_OUTPUT=True
@@ -362,7 +362,7 @@ def client0():
         # 此为默认路径，您可根据业务所在地域进行配置
         base_url="https://ark.cn-beijing.volces.com/api/v3",
         # 从环境变量中获取您的 API Key。此为默认方式，您可根据需要进行修改
-        api_key="4a4becd8-195c-4fc2-b620-65cb7b72af4e",
+        api_key="a63a43cf-5056-4cae-ad94-11e4a82e7447",
         timeout=1800,
         # 设置重试次数
         max_retries=2,

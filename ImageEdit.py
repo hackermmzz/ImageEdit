@@ -57,7 +57,7 @@ def polish_edit_prompt(img,prompt):
 def ImageEditByAPI(image,prompt:str,neg_prompt:str)->Image.Image:
     client = Ark( 
         base_url="https://ark.cn-beijing.volces.com/api/v3", 
-        api_key="4a4becd8-195c-4fc2-b620-65cb7b72af4e", 
+        api_key="a63a43cf-5056-4cae-ad94-11e4a82e7447", 
     )
     
     input=image
