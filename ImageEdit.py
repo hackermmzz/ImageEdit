@@ -129,7 +129,7 @@ def ImageFixByAPI(images,prompt:str)->Image.Image:
     #images[0]是原图,images[1]是编辑过的图
     client = Ark( 
         base_url="https://ark.cn-beijing.volces.com/api/v3", 
-        api_key="4a4becd8-195c-4fc2-b620-65cb7b72af4e", 
+        api_key="0768c60e-15da-44c5-9205-2ebf5a1594cf", 
     )
     w,h=images[0].size
     if w*h<921600:
@@ -142,7 +142,7 @@ def ImageFixByAPI(images,prompt:str)->Image.Image:
         model="doubao-seedream-4-0-250828", 
         prompt=f'''{prompt}''',
         image=[encode_image(input) for input in images],
-        size=f"{images[0].size[0]}x{images[0].size[1]}",
+        size=f"2048x2048",
         sequential_image_generation="auto",
         sequential_image_generation_options=SequentialImageGenerationOptions(max_images=1),
         response_format="url",

@@ -17,9 +17,7 @@ def Process_Directly(image:Image.Image,task:str,neg_prompts:list,epoch:int,globa
     return output_img
 
 def Process_ByBox(image:Image.Image,task:str,neg_prompts:list,epoch:int,global_itr_cnt:int,dir:str):
-    ###########先判断是否需要画框
-    check=AnswerImage([image],"You are now an image object bounding box detection expert.You just answer me yes or no.If you think I should bound the target output yes otherwise output no,and remember don't output any other except yes or no",task)
-    if "yes" in check.lower():
+    if global_itr_cnt%2==0:
         ###########编辑图像
         Debug("获取编辑区域中...")
         boxes=GetROE(image,f"Now I will give you the image-edit instruction:{task}.You should give me the fittable answer as a region for editing")

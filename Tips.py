@@ -15,7 +15,7 @@ from PIL import Image,ImageFilter,ImageDraw
 os.system("rm -rf debug/")
 os.system("mkdir debug")
 DEVICE = "cuda" if cuda.is_available() else "cpu"
-TEST_MODE=True	#测试模式将验证测试机
+TEST_MODE=False	#测试模式将验证测试机
 PARALLE_MODE=TEST_MODE and True  #并行测试所有的数据集
 THREAD_OBJECT=None if not PARALLE_MODE else threading.local() #存储线程级别的对象数据
 TEST_CNT=20

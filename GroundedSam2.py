@@ -7,11 +7,11 @@ import supervision as sv
 from PIL import Image
 from sam2.build_sam import build_sam2
 from sam2.sam2_image_predictor import SAM2ImagePredictor
-from transformers import AutoProcessor, AutoModelForZeroShotObjectDetection 
+from transformers import AutoProcessor, AutoModelForZeroShotObjectDetection ,AutoTokenizer
 from transformers import CLIPModel, CLIPProcessor
 from scipy.spatial.distance import cosine
 from Tips import *
-import random
+import torch.nn.functional as F
 import threading
 ########################################################
 GroundingProcessor=AutoProcessor.from_pretrained("Safetensors/GroundingDINO")
@@ -20,6 +20,7 @@ SamModel=build_sam2("configs/sam2.1/sam2.1_hiera_l.yaml", "Safetensors/SAM/sam2.
 SamPredictor=SAM2ImagePredictor(SamModel)
 CLIPProcessor=CLIPProcessor.from_pretrained("Safetensors/CLIP")
 CLIPModel = CLIPModel.from_pretrained("Safetensors/CLIP").to(DEVICE).eval()
+CLIPTokenizer = AutoTokenizer.from_pretrained("Safetensors/CLIP")
 CLIPLock=threading.Lock()
 SAMLock=threading.Lock()
 GroundingDINOLock=threading.Lock()
@@ -35,21 +36,19 @@ def MaskToGlobal(mask, box, img_size):
             global_mask[y,x]=mask[y-y0,x-x0]
     return global_mask
 ########################################################计算CLIP分数
-def CLIPScore(image, target:str):
+def CLIPScore(image, prompt:str):
     try:
         CLIPLock.acquire()
         with torch.no_grad():
-            inputs = CLIPProcessor(images=image, return_tensors="pt").to(DEVICE)
-            embedding_0 = CLIPModel.get_image_features(** inputs)
-            inputs =CLIPProcessor(text=target,return_tensors="pt").to(DEVICE)
-            embedding_1=CLIPModel.get_text_features(**inputs)
-        imageD=embedding_0.cpu().numpy().flatten()
-        textD=embedding_1.cpu().numpy().flatten()
-        imageD = imageD / np.linalg.norm(imageD)
-        textD = textD / np.linalg.norm(textD)
+            image_inputs = CLIPProcessor(images=image, return_tensors='pt').to(DEVICE)
+            text_inputs = CLIPTokenizer(prompt, return_tensors='pt', padding=True).to(DEVICE)
+            image_features = CLIPModel.get_image_features(**image_inputs)
+            text_features = CLIPModel.get_text_features(**text_inputs)
     finally:
         CLIPLock.release()
-    return 1.0-cosine(imageD, textD)
+    similarity = F.cosine_similarity(image_features, text_features, dim=1).item()
+    similarity=(similarity+1)/2
+    return similarity
 ######################################################抠图
 def GroundingDINO_SAM2(image,text_prompt:str,crop_box=None):
     crop_box=crop_box if crop_box else (0,0,image.size[0],image.size[1])
