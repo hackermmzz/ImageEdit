@@ -10,12 +10,12 @@ from ProcessTask import *
 from Predict import *
 #初始化
 def Init():
-   if os.path.exists("Safetensors")==False:
+    model_dir="Safetensors"
+    if os.path.exists(model_dir)==False:
         from huggingface_hub import snapshot_download
-        save_dir = "Safetensors/"
+        save_dir = model_dir
         repo_id = "hackermmzz/ImageEdit"
         cache_dir = save_dir + "/cache"
-
         snapshot_download(
             cache_dir=cache_dir,
             local_dir=save_dir,
