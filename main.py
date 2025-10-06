@@ -10,7 +10,21 @@ from ProcessTask import *
 from Predict import *
 #初始化
 def Init():
-   pass
+   if os.path.exists("Safetensors/")==False:
+        os.mkdir("Safetensors")
+        os.system("hf download hackermmzz/ImageEdit --cache-dir ./")
+        #移动模型到该目录
+        def MoveModel(cur:str,target_name:str):
+            for folder in os.listdir(cur):
+                path=f"{cur}/{folder}"
+                if target_name in folder:
+                    os.system(f"mv {path}/* Safetensors/{target_name}")
+                elif os.path.isfile(path)==False:
+                    MoveModel(path,target_name)
+        MoveModel("Safetensors/","CLIP")
+        MoveModel("Safetensors","dinov2-base")
+        MoveModel("Safetensors","GroundingDINO")
+        MoveModel("Safetensors","SAM")
 #运行一个单例
 def ProcessImageEdit(img_path:str,prompt:str,dir:str):
     #
