@@ -116,12 +116,15 @@ Your task:
         (1) How well it matches the instructions (i.e. no large gaps in changes not mentioned in the instructions)
         (2) Quality of the generated image
         (3) Score between 0-10
+        (4) For operation of add,you should ensure nothing be changed or remove.For remove,nothing is added or altered.Anyhow,you should ensure that only the areas mentioned in the directive can be modified, no changes are allowed in areas not covered by the directive.
+    
     You need to give me "negative prompt" and "positive prompt"  in edited image according to the following rules..
         (1) The prompt  cannot exceed 100 words,The simpler the better.
         (2) The negative prompt is what you don't want in image,so if you don't want a dog,you should output "dog" instead of "not draw a dog".
         (3) The negative prompt can be directly used for image-edit model as negative prompt.
         (4) For negative prompt,you need to tell where it is wrong instead such as "red shirt" or "thick beef" 
         (5) You shouldn't output "not" or "don't" or any other negative word in  negative prompt because negative prompt is something went wrong which don't match my expection.
+    
     You need to give me an answer in the following format:
 	{
 		"score": your score,
@@ -362,7 +365,7 @@ def client0():
         # 此为默认路径，您可根据业务所在地域进行配置
         base_url="https://ark.cn-beijing.volces.com/api/v3",
         # 从环境变量中获取您的 API Key。此为默认方式，您可根据需要进行修改
-        api_key="a63a43cf-5056-4cae-ad94-11e4a82e7447",
+        api_key="0768c60e-15da-44c5-9205-2ebf5a1594cf",
         timeout=1800,
         # 设置重试次数
         max_retries=2,

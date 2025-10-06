@@ -57,7 +57,7 @@ def polish_edit_prompt(img,prompt):
 def ImageEditByAPI(image,prompt:str,neg_prompt:str)->Image.Image:
     client = Ark( 
         base_url="https://ark.cn-beijing.volces.com/api/v3", 
-        api_key="a63a43cf-5056-4cae-ad94-11e4a82e7447", 
+        api_key="0768c60e-15da-44c5-9205-2ebf5a1594cf", 
     )
     
     input=image
@@ -69,7 +69,7 @@ def ImageEditByAPI(image,prompt:str,neg_prompt:str)->Image.Image:
         model="doubao-seedream-4-0-250828", 
         prompt=f'''{prompt} and don't occur following cases: "{neg_prompt}" ''',
         image=[encode_image(input)],
-        size=f"{input.size[0]}x{input.size[1]}",
+        size=f"4096x4096",
         sequential_image_generation="auto",
         sequential_image_generation_options=SequentialImageGenerationOptions(max_images=1),
         response_format="url",

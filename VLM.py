@@ -172,8 +172,8 @@ def GetImageScore(images:list,role_tip:str,question:str):
             return None
     tasks=[
         partial(AnswerImageByAPI,client=client1,model="qwen3-vl-plus"),#调用基础的模型
-        partial(AnswerImageByAPI,client=client1,model="qwen-vl-max"),
-        partial(AnswerImageByAPI,client=client1,model="qwen-vl-plus"),
+        partial(AnswerImageByAPI,client=client0,model="doubao-seed-1-6-vision-250815"),
+        partial(AnswerImageByAPI,client=client0,model="doubao-seed-1-6-250615"),
     ]
     #
     cost=Timer()
