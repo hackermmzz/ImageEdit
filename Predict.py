@@ -4,26 +4,32 @@ import random
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 #########################使用vincie数据集测试
-def PredictByVINCIE():
+def PredictByMagicBrush():
     #获取所有待测试的数据
-    target=[]
+    target={}
+    dir="data/MagicBrush"
+    for folder in os.listdir(dir):
+        path=f"{dir}/{folder}"
+        cnt=len(os.listdir(path))//3
+        target_img=f"{path}/source_1.png"
+        run_dir=f"debug/{folder}"
+        task=[]
+        for i in range(1,cnt+1):
+            with open(f"{path}/task_{i}.txt","r",encoding="utf-8") as f:
+                t=f.read()
+            task.append(t)
+        if cnt not in target:
+            target[cnt]=[]
+        target[cnt].append({"input_img":target_img,"task":task,"dir":run_dir})
+    #
+    target=target[3]
+    #随机选择3轮次的进行编辑
+    ret=[]
     for i in range(TEST_CNT):
-        idx=random.randint(1,4091)
-        try:
-            #创建目录
-            dir=f"{DEBUG_DIR}/{idx}/"
-            #
-            target_img=f"data/{idx}/0.jpg"
-            target_prompt_file=f"data/{idx}/ins.txt"
-            if not os.path.exists(target_img) or not os.path.exists(target_prompt_file):
-                raise(f"no such {idx} file or directory!")
-            #读取指令
-            with open(target_prompt_file,"r") as f:
-                target_prompt=f.read()
-        except Exception as e:
-            pass
-        target.append({"input_img":target_img,"task":target_prompt,"dir":dir})
-    return target
+        idx=random.randint(0,len(target)-1)
+        ret.append(target[idx])
+        target=target[:idx]+target[idx+1:]
+    return ret
     
 ###########################使用NanoBanana测试
 def PredictByNanoBanana():
@@ -59,4 +65,4 @@ def PredictByNanoBanana():
     return ret
 #################################
 if __name__=="__main__":
-    PredictByNanoBanana()
+    PredictByMagicBrush()

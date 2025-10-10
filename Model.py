@@ -57,6 +57,7 @@ def SummaryPrompt(prompts:list)->str:
     except Exception as e:
         Debug("SummaryPrompt:",e,res)
         return SummaryPrompt(prompts)
+
 ##########################################
 if __name__=="__main__":
     img=Image.open("data/1/0.jpg").convert("RGB")

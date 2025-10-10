@@ -24,17 +24,18 @@ def Init():
             resume_download=True
         )
 #运行一个单例
-def ProcessImageEdit(img_path:str,prompt:str,dir:str):
+def ProcessImageEdit(img_path:str,prompt,dir:str):
     #
     cost_total=Timer()
     #加载图片
     ori_image=Image.open(img_path).convert("RGB")
     DebugSaveImage(ori_image,f"origin_image_{RandomImageFileName()}",dir)
-    ########################################第一层：专家池
+    ########################################
     #专家1 任务细分
     Debug("原指令为:",prompt)
     Debug("正在进行任务细分...")
     cost=Timer()
+    tasks=prompt
     tasks=GetTask(ori_image,prompt)
     Debug("任务细分耗时:",cost())
     Debug("任务细分:",tasks)
@@ -63,6 +64,7 @@ def ProcessImageEdit(img_path:str,prompt:str,dir:str):
                 Debug(f"优化指令为:{task}")
             else:
                 task=tasks[i][0]
+        Debug(f"编辑指令为{task}")
         #任务处理
         output_img=None
         task_type=tasks[i][1]
@@ -135,11 +137,11 @@ def Run():
             print(e)
             return
     else:
-       # data=PredictByVINCIE()
-        data=PredictByNanoBanana()
+        data=PredictByMagicBrush()
+        #data=PredictByNanoBanana()
     #构建任务
     tasks=[]
-    def Task(input_img:str,tasks:str,dir:str):
+    def Task(input_img:str,tasks,dir:str):
         os.makedirs(dir)
         os.makedirs(f"{dir}/Total")
         if PARALLE_MODE:

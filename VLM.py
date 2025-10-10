@@ -118,6 +118,10 @@ def AnswerImage(images:list,role_tip:str,question:str):
     except Exception as e:
         Debug("AnswerImage:",e)
         return AnswerImage(images,role_tip,question)
+##########################################获取编辑指令操作的对象
+def GetTaskOperateObject(image:Image.Image,task:str):
+    target_object=json.loads(AnswerImage([image],ObjectGet_Prompt,f"Now I give my edit task:{task}"))[0]
+    return target_object
 ##########################################获取ROE
 def GetROE(image:Image.Image,question:str) ->list:
     try:    
@@ -169,6 +173,7 @@ def GetImageScore(images:list,role_tip:str,question:str):
                         question=question
                         )
         except Exception as e:
+            Debug("GetImageScore:run:",e)
             return None
     tasks=[
         partial(AnswerImageByAPI,client=client1,model="qwen3-vl-plus"),#调用基础的模型

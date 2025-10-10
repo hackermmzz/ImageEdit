@@ -150,7 +150,7 @@ def GroundingDINO_SAM2(image,text_prompt:str,crop_box=None):
                     # 检查当前位置的mask值是否为True
                     if mask[i, j]:
                         # 如果为True，将该位置的像素值设为0（或255）
-                        masked_out_rgb[i, j] =[0,0,0]#[random.randint(0,255),random.randint(0,255),random.randint(0,255)]  # 或 255
+                        masked_out_rgb[i, j] =[255,0,0]#[random.randint(0,255),random.randint(0,255),random.randint(0,255)]  # 或 255
             cut_out_img_ = Image.fromarray(masked_out_rgb)
             # 保存结果
             extracted_masks_img.append(pil_mask.convert("RGB"))  # 或保持透明

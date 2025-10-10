@@ -62,12 +62,10 @@ def ImageEditByAPI(image,prompt:str,neg_prompt:str)->Image.Image:
     
     input=image
     w,h=image.size
-    if w*h<921600:
-        scale=(921600/(w*h))**(0.5)
-        input=image.resize((int(w*scale)+2,int(h*scale)+2))
+    image.resize((1024,1024))
     imagesResponse = client.images.generate( 
         model="doubao-seedream-4-0-250828", 
-        prompt=f'''{prompt} and don't occur following cases: "{neg_prompt}" ''',
+        prompt=f'''{prompt} '''+('''and don't occur following cases: "{neg_prompt}"''' if neg_prompt else ""),
         image=[encode_image(input)],
         size=f"4096x4096",
         sequential_image_generation="auto",
@@ -82,8 +80,10 @@ def ImageEditByAPI(image,prompt:str,neg_prompt:str)->Image.Image:
     response = requests.get(url,timeout=30)
     response.raise_for_status() #检查请求是否成功
     #将二进制数据转换为PIL Image对象
-    image = Image.open(BytesIO(response.content))
-    return image.convert("RGB").resize(image.size)   
+    image = Image.open(BytesIO(response.content)).convert("RGB")
+    #保持生成的图片尺寸和原来一样
+    # image=image.resize((w,h))
+    return image
 ###################################图像编辑
 def ImageEditByPipe(image,prompt:str,neg_prompt:str):
     try:
@@ -156,16 +156,11 @@ def ImageFixByAPI(images,prompt:str)->Image.Image:
     response.raise_for_status() #检查请求是否成功
     #将二进制数据转换为PIL Image对象
     image = Image.open(BytesIO(response.content))
-    return image.convert("RGB").resize((w,h))   
-################################测试
+    return image.convert("RGB").resize((w,h))               
+#############################################
 if __name__=="__main__":
-    while True:
-        try:
-            path=input("path:")
-            image=Image.open(path).convert("RGB")
-            prompt=input("prompt:")
-            neg_prompt=input("neg_prompt:")
-            res=ImageEditByPipe(image,prompt,[neg_prompt])
-            res.save(f"debug/{RandomImageFileName()}")
-        except Exception as e:
-            print("error:",e)
+    img=Image.open(input("img:")).convert("RGB")
+    prompt=input("prompt:")
+    res=ImageEditByAPI(img,prompt,"")
+    res.save("debug/origin.png")
+    res.resize(img.size).save("debug/resize.png")

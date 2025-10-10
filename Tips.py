@@ -18,7 +18,7 @@ DEVICE = "cuda" if cuda.is_available() else "cpu"
 TEST_MODE=False	#测试模式将验证测试机
 PARALLE_MODE=TEST_MODE and True  #并行测试所有的数据集
 THREAD_OBJECT=None if not PARALLE_MODE else threading.local() #存储线程级别的对象数据
-TEST_CNT=20
+TEST_CNT=10
 DEBUG=True
 DEBUG_LOCK=None if not DEBUG else threading.Lock()
 DEBUG_OUTPUT=True
@@ -32,6 +32,7 @@ Enable_Local_VLM=False
 Enable_Local_ImageEdit=False
 Enable_TaskPolish=False
 Enable_TextureFix=False
+Enabel_Agent=True
 #################the type of task
 TaskType=[
         "add",
@@ -116,8 +117,8 @@ Your task:
         (1) How well it matches the instructions (i.e. no large gaps in changes not mentioned in the instructions)
         (2) Quality of the generated image
         (3) Score between 0-10
-        (4) For operation of add,you should ensure nothing be changed or remove.For remove,nothing is added or altered.Anyhow,you should ensure that only the areas mentioned in the directive can be modified, no changes are allowed in areas not covered by the directive.
-    
+        (4) For operation of add,you should ensure nothing be changed or remove or pos changed.For operation of remove,nothing is added or altered.Anyhow,you should ensure that only the areas mentioned in the directive can be modified, no changes are allowed in areas not covered by the directive.
+
     You need to give me "negative prompt" and "positive prompt"  in edited image according to the following rules..
         (1) The prompt  cannot exceed 100 words,The simpler the better.
         (2) The negative prompt is what you don't want in image,so if you don't want a dog,you should output "dog" instead of "not draw a dog".
@@ -365,7 +366,7 @@ def client0():
         # 此为默认路径，您可根据业务所在地域进行配置
         base_url="https://ark.cn-beijing.volces.com/api/v3",
         # 从环境变量中获取您的 API Key。此为默认方式，您可根据需要进行修改
-        api_key="0768c60e-15da-44c5-9205-2ebf5a1594cf",
+        api_key="da11cd64-e1ac-452f-8982-238770638e98",
         timeout=1800,
         # 设置重试次数
         max_retries=2,
@@ -402,3 +403,16 @@ def DrawRedBox(image, boxes, width=3):
     for box in boxes:
         draw.rectangle(box, outline="red", width=width)
     return image_copy
+
+def GetBoxMask(w,h,boxes):
+    image = Image.new('L', (w, h), 0)
+    draw = ImageDraw.Draw(image)
+    for box in boxes:
+        x1, y1, x2, y2 = map(int, box)
+        # 确保坐标在图像范围内
+        x1 = max(0, min(x1, w))
+        y1 = max(0, min(y1, h))
+        x2 = max(0, min(x2, w))
+        y2 = max(0, min(y2, h))
+        draw.rectangle([x1, y1, x2, y2], fill=255)  
+    return image
