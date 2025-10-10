@@ -57,7 +57,21 @@ def SummaryPrompt(prompts:list)->str:
     except Exception as e:
         Debug("SummaryPrompt:",e,res)
         return SummaryPrompt(prompts)
-
+#获取prompt的操作区域和生成目标
+def GetSoureAndTargetArea(image:Image.Image,prompt:str):
+    res=AnswerImage([image],DividePrompt_Prompt,prompt)
+    try:
+        data=json.loads(res)
+        source=data["source"]
+        source=source if source!="none" else None
+        target=data["target"]
+        target=target if target!="none" else None
+        mask=data["mask"]
+        w,h=image.size
+        return source,target,[int(mask[0]*w),int(mask[1]*h),int(mask[2]*w),int(mask[3]*h)]
+    except Exception as e:
+        Debug("GetSoureAndTargetArea:",e,res)
+        return GetSoureAndTargetArea(image,prompt)
 ##########################################
 if __name__=="__main__":
     img=Image.open("data/1/0.jpg").convert("RGB")

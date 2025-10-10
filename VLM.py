@@ -152,18 +152,6 @@ def GetROE(image:Image.Image,question:str) ->list:
         Debug("GetROE:",e,res)
         return GetROE(image,question)
     return ret
-def GetROEChecked(image:Image.Image,question:str)->list:
-    for i in range(3):
-        boxes=GetROE(image,question)
-        img=DrawRedBox(image,boxes)
-        answer=AnswerImage([img],
-                        '''The answer you output must be the follwing format : your answer''',
-                        f'''what do you think about the red box bounded by the prompt "{question}",and if you think it's right,answer me "ok",otherwise directly give me the better prompt''')
-        question=answer
-        if "ok" in question:
-            break
-        Debug(question)
-    return boxes
 ##########################################获取得分
 def GetImageScore(images:list,role_tip:str,question:str):
     def run(task):

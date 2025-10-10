@@ -11,22 +11,26 @@ import xml.etree.ElementTree as ET
 from Inpainting import *
 from ImageSearchAgent import *
 def Process_InpaintingByIpAdapter(image:Image.Image,task:str,neg_prompts:list,epoch:int,global_itr_cnt:int,dir:str):
-    #获取操作对象
-    Debug("正在获取指定对象中...")
-    target_object=GetTaskOperateObject(image,task)
-    Debug("操作的目标是:",target_object)
+    #获取操作区域
+    source,target,box=GetSoureAndTargetArea(image,task)
+    if  target==None:
+        Debug("Process_InpaintingByIpAdapter:","target不能为None",source,target)
+        return image
     #获取ip图片
-    ip_adapter=GetTargetImage(target_object)
+    ip_adapter=GetTargetImage(target)
     DebugSaveImage(ip_adapter,f"ip_adapter_{epoch}_{global_itr_cnt}.png",dir=dir)
-    #使用VLM框出指定区域
-    Debug("获取编辑区域中...")
-    boxes=GetROE(image,f"Please give the box of the target area need to operate in.The edit instruction is:{task}")
-    Debug("编辑区域是:",boxes)
-    mask=GetBoxMask(image.size[0],image.size[1],boxes)
+    #获取指定编辑区域
+    Debug("正在获取mask区域...")
+    mask=None
+    if source !=None:
+        mask=GroundingDINO_SAM2(image,source,[box])["cutOut_img"]
+    else:
+        mask=GetBoxMask(image.size[0],image.size[1],[box])
+    Debug("获取成功!")
     DebugSaveImage(mask,f"mask_{epoch}_{global_itr_cnt}.png",dir=dir)
     #
     Debug("正在进行图像编辑...")
-    output_img=InpaintingByIpAdapter(image,mask,target_object,ip_adapter,neg_prompts)
+    output_img=InpaintingByIpAdapter(image,mask,target,ip_adapter,neg_prompts)
     output_img=output_img.resize(image.size)
     Debug("图像编辑完成!")
     DebugSaveImage(output_img,f"edited_image_{epoch}_{global_itr_cnt}.png",dir=dir)
@@ -190,8 +194,8 @@ system_prompt=f'''
             EditImageDirectly:这个函数是调用的全局编辑模型进行图像编辑，这个函数所有指令都适用，因为是单纯对图像进行全局编辑，所以全局类型的变换必须使用它，比如把画面改成傍晚，卡通画，视角改变等等，当然局部修改也可以使用它.它的效果依赖于编辑模型的能力和prompt的精确度
             EditImageByBox:这个函数是调用的全局编辑模型进行图像编辑,它会预处理一下图片，在原图上画出一个矩形框，来框选要操作的区域，这个函数适用于需要精准定位的编辑指令（如在人头部画一个帽子，便会在人头顶画一个红色区域以此提醒编辑模型），不适合全局类型的修改。它的效果依赖于模型的能力以及框选区域的准确性。
             EditImageByMask:这个函数是调用的全局编辑模型进行图像编辑,它会预处理一下图片，使用红色填充满要操作的区域提示编辑模型，这个函数适合用于操作单个物体且编辑指令不依赖原物体（如移除树上的鸟、将杯子替换为蛋糕）。它的效果依赖于模型的能力以及填充区域的准确性。
-            InpaintingByMask:这个函数是调用inpainting模型进行局部重绘的图像编辑，其中mask区域就是要重新绘制的区域，prompt为你想要绘制的东西，这个函数适合用于局部修改，（如mask盖住的区域，你可以把prompt设置为蛋糕，那么便会生成蛋糕）。它的效果依赖于prompt的准确性以及mask的准确性。
-            InpaintingByMaskAndIpAdapter:这个函数是调用inpainting模型进行局部重绘的图像编辑，但是在重绘的时候会使用一张符合prompt的ip adapter图片作为参照,这个函数适合用于向图片内添加单个物体（比如prompt为一只红色长嘴丹顶鹤，它便会在合适区域去生成丹顶鹤）。它的效果依赖于prompt的准确性以及mask的准确性，以及ip图片的匹配性质。但是相对于增添物体，这个函数更好。
+            InpaintingByMask:这个函数是调用inpainting模型进行局部重绘的图像编辑，函数会自动将从指令里面获取mask区域和重新绘制的object，这个函数适合用于局部修改，（如prompt为将杯子移除，那么mask就会为杯子，在该区域进行重新绘制）。它的效果依赖于prompt的准确性以及mask的准确性。
+            InpaintingByMaskAndIpAdapter:这个函数是调用inpainting模型进行局部重绘的图像编辑，函数会自动将从指令里面获取合适的mask区域和inpainting的物体，但是在重绘的时候会使用一张符合prompt图片作为参照,这个函数适合用于向图片内添加单个物体（比如prompt为在天空生成一只红色长嘴丹顶鹤，它便会在合适区域去生成丹顶鹤）。它的效果依赖于prompt的准确性以及mask的准确性，以及ip图片的匹配性质。但是相对于增添物体，这个函数更好。
         (4)你第一次的编辑任务只能调用EditImageDirectly函数。
         (5)你需要根据我给你的工具，充分利用好工具，得到满意的效果
         (6)每次编辑，你需要给我你需要调用工具的完整调用代码<call>function call</call>
@@ -206,29 +210,38 @@ system_prompt=f'''
             我: "..."
             ......
     '''
+
+''''   
 messages=[
     {"role":"system","content":f"{system_prompt}"},
 ]
-messages1=[
+'''
+messages=[
         {
             "role":"system",
             "content": [
                     {"type": "text", "text": f"{system_prompt}"},
             ]
         },
-        {
-            "role": "user",
-            "content": [
-                    {"type": "text", "text": f"{question}"},
-            ]+
-            [ {"type": "image_url", "image_url": {"url": encode_image(image)}} for image in images]
-            ,
-        }
-    ],
+    ]
+preImg=None
 def ProcessByAgent(image:Image.Image,task:str,task_type:str,neg_prompts:list,epoch:int,global_itr_cnt:int,dir:str)->Image.Image:
     #
+    global preImg
+    def Ask(image,question):
+        #messages.append({"role": "user", "content": f'''指令是:{task},原始图像是 image'''})
+        msg=[{"type": "text", "text":question}]
+        if image:
+            msg+=[{"type": "image_url", "image_url": {"url": encode_image(image)}}]
+        messages.append({"role": "user","content":msg})
     def Answer():
-        return AnswerImageByAPI([image])
+        client=client1()
+        response = client.chat.completions.create(
+            # 指定您创建的方舟推理接入点 ID，此处已帮您修改为您的推理接入点 ID
+            model="qwen3-vl-plus",
+            messages=messages,
+        )
+        return (response.choices[0].message.content)
         client = Ark(
             # 此为默认路径，您可根据业务所在地域进行配置
             base_url="https://ark.cn-beijing.volces.com/api/v3",
@@ -256,9 +269,9 @@ def ProcessByAgent(image:Image.Image,task:str,task_type:str,neg_prompts:list,epo
     global messages
     if global_itr_cnt==1:
         messages=messages[:1]
-        messages.append({"role": "user", "content": f'''指令是:{task},原始图像是 image'''})
+        Ask(image, f'''指令是:{task},原始图像是 image''')
     else:
-        messages.append({"role": "user", "content": f"负反馈:{neg_prompts}"})
+        Ask(preImg,"负反馈:{neg_prompts}")
     res=Answer()
     messages.append({"role": "assistant", "content": res})
     call = ET.fromstring(res).text
@@ -266,6 +279,7 @@ def ProcessByAgent(image:Image.Image,task:str,task_type:str,neg_prompts:list,epo
     namespace={**globals(),**locals()}
     exec(f"edited_img={call}",namespace)
     edited_img=namespace["edited_img"].copy().convert("RGB")
+    preImg=edited_img
     return edited_img
 
 
@@ -275,5 +289,4 @@ def ProcessByAgent(image:Image.Image,task:str,task_type:str,neg_prompts:list,epo
 ################################################################
 if __name__=="__main__":
     image=Image.open("image.png").convert("RGB")
-    
     Process_InpaintingByIpAdapter(image,"add a cat with black and white color  on the sofa ",None,1,1,"debug")

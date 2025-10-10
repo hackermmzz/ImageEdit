@@ -333,6 +333,43 @@ Example:
     ["face", "vase"]
 You may not give any other answer than the required format answer.
 '''
+################################拆解Prompt的提示词
+DividePrompt_Prompt='''
+    You are now a localised image editing region locator expert, my  will give you one image and image editing instructions, you need to give an answer based on the image and instructions that I have given, following the rules below.
+    (1) You need to split the instruction to get the target which I need to generate, if there is no object involved in the instruction to generate give "none"
+    (2)You also need to give me the operation region, that is I need to edit in for local editing, you need to follow the following rules to give the specified region
+        1. You give the region is a 0-1 floating point  quaternion, indicating the relative position of the top left to bottom right on the figure
+    (3) You also need to give the key of source. If the area to be operated is the whole object give me it,but for a local part of the object, you can just give "none".
+    (4) Your answer must follow the following format.
+        {
+            "target":"..." ,
+            "source":"..."
+            "mask":[a,b,c,d]
+        }
+        Example 1.
+            Instruction:Generate a crown on a person's head
+            Answer:{
+                "source":"none",
+                "target": "Crown",
+                "mask":[0.1,0.2,0.3,0.4] (this is the relative position of the top of the person's head in the graph, where a portion of it will be left empty for generating a crown)
+            }
+        Example 2.
+            Instruction:Replace cat with dog
+            Answer:{
+                "source":"cat",
+                "target": "dog",
+                "mask":[0.1,0.2,0.3,0.4] (this is the relative position of the cat in the image)
+            }
+        Example 3.
+            Instruction:Remove bin
+            Answer:{
+                "source":"bin",
+                "target": "none",
+                "mask":[0.1,0.2,0.3,0.4] (this is the relative position of the bin in the diagram)
+            }
+    (5) You have to follow the format I gave you, and cannot give any output other than a formatted answer
+        
+'''
 ################################调试函数
 def Debug(*msg):
     if not DEBUG:
@@ -366,7 +403,7 @@ def client0():
         # 此为默认路径，您可根据业务所在地域进行配置
         base_url="https://ark.cn-beijing.volces.com/api/v3",
         # 从环境变量中获取您的 API Key。此为默认方式，您可根据需要进行修改
-        api_key="da11cd64-e1ac-452f-8982-238770638e98",
+        api_key="91d86bec-d21e-4c87-b121-bbf249b50345",
         timeout=1800,
         # 设置重试次数
         max_retries=2,
