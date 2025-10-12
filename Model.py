@@ -1,6 +1,20 @@
 from LLM import *
 from VLM import *
 import threading
+################################模型池
+'''AllModel={}
+def PushModel(name:str,path:str):
+    if name not in AllModel:
+        AllModel[name]=[path,time.time(),None]
+def GetModel(name:str):
+    if name in AllModel:
+        d=AllModel[name]
+        while d[1]==None:
+            
+        return d[1]
+    return None
+def '''
+################################
 #获取任务
 def GetTask(image,description:str):
     answer=AnswerImage([image],Expert1_Prompt,f"My task is:{description}")
@@ -59,7 +73,34 @@ def SummaryPrompt(prompts:list)->str:
         return SummaryPrompt(prompts)
 #获取prompt的操作区域和生成目标
 def GetSoureAndTargetArea(image:Image.Image,prompt:str):
-    res=AnswerImage([image],DividePrompt_Prompt,prompt)
+    client=client1()
+    response = client.chat.completions.create(
+        # 指定您创建的方舟推理接入点 ID，此处已帮您修改为您的推理接入点 ID
+        model="qwen3-vl-plus",
+        messages=[
+                {
+                    "role":"system",
+                    "content": [
+                            {"type": "text", "text": f"{DividePrompt_Prompt}"},
+                    ]
+                },
+                {
+                    "role": "user",
+                    "content": [
+                            {"type": "text", "text": f"{prompt}"},
+                    ]+
+                    [ {"type": "image_url", "image_url": {"url": encode_image(image.resize((512,512)))}}]
+                    ,
+                },
+            ],
+        extra_body={
+        'enable_thinking': True,
+        "thinking_budget": 81920
+        },
+    )
+    Debug("reason:",response.choices[0].message.reasoning_content)
+    res=response.choices[0].message.content
+    #res=AnswerImage([image],DividePrompt_Prompt,prompt)
     try:
         data=json.loads(res)
         source=data["source"]

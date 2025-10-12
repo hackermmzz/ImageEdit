@@ -102,12 +102,12 @@ def GetMaxFittable(images:list,target:str):
     return target_img
 ###############################################组合
 def GetTargetImage(target:str):
-    while True:
-        try:
-            images=DownloadImages(target,10,True)
-            return GetMaxFittable(images,target).convert("RGB")
-        except Exception as e:
-            Debug("GetTargetImage:",e)
+    try:
+        images=DownloadImages(target,10,False)
+        return GetMaxFittable(images,target).convert("RGB")
+    except Exception as e:
+        Debug("GetTargetImage:",e)
+        return GetTargetImage(target)
 ###############################################
 if __name__ == '__main__':
     cost=Timer()

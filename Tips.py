@@ -11,19 +11,20 @@ from PIL import Image
 import time
 import threading
 from PIL import Image,ImageFilter,ImageDraw
+import gc
 ###############全局配置
 os.system("rm -rf debug/")
 os.system("mkdir debug")
 DEVICE = "cuda" if cuda.is_available() else "cpu"
 TEST_MODE=False	#测试模式将验证测试机
 PARALLE_MODE=TEST_MODE and True  #并行测试所有的数据集
-THREAD_OBJECT=None if not PARALLE_MODE else threading.local() #存储线程级别的对象数据
 TEST_CNT=10
 DEBUG=True
 DEBUG_LOCK=None if not DEBUG else threading.Lock()
 DEBUG_OUTPUT=True
 DEBUG_DIR="debug/"
 DEBUG_FILE=sys.stdout if (not DEBUG or not DEBUG_OUTPUT or PARALLE_MODE) else open(f"{DEBUG_DIR}/debug.txt","w",encoding="utf-8")
+THREAD_OBJECT=threading.local() #存储线程级别的对象数据
 GlobalScoreThershold=7
 GlobalItrThershold=3
 ClipScoreThreshold=0.21
@@ -76,7 +77,7 @@ Let's say you're a professional and detailed image editing task subdivider, spec
 - You must only output the subdivided sub-tasks in an array [] format. Each sub-task is a separate string enclosed in double quotes, and commas are used to separate different sub-task strings.
 - Do not add any additional content outside the array (such as explanations, prompts, notes, or greetings). Even if the original task has only one sub-task, it must still be placed in the array.
 - The array format must be consistent with the example (neatly formatted, with each sub-task string on a new line for readability, but ensuring the syntax of the array is correct).
-
+- In a nutshell, you gave an answer in the format [[task0,type0],[task1,type1]....]
 Example:
 Question: change the colour of the teacup to black and have the person's right hand in a yay pose, change the setting to a green meadow, add a teapot, delete the clouds in the sky and replace them with rainbows
 Your answers:
@@ -411,7 +412,7 @@ def client0():
     return client
 def client1():
     client= OpenAI(
-        api_key="sk-17cd5f2ebd6b4981b9eb6991a0ddfe3d",
+        api_key="sk-c629b72422ef42f1b48f1bf3a2644bb5",
         base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
         timeout=1800,
         max_retries=2,
@@ -431,7 +432,7 @@ class Timer():
          interval=time.time()-self.beg
          return str(int(interval))+"秒"
      
-def DrawRedBox(image, boxes, width=3):
+def DrawRedBox(image, boxes, width=5):
     # 拷贝原图避免修改原图像
     image_copy = image.copy()
     # 创建可绘制对象
@@ -453,3 +454,8 @@ def GetBoxMask(w,h,boxes):
         y2 = max(0, min(y2, h))
         draw.rectangle([x1, y1, x2, y2], fill=255)  
     return image
+
+def UnLoadModel(*model):
+    for x in model:
+        del x
+    gc.collect()

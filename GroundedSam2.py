@@ -21,9 +21,6 @@ SamPredictor=SAM2ImagePredictor(SamModel)
 CLIPProcessor=CLIPProcessor.from_pretrained("Safetensors/CLIP")
 CLIPModel = CLIPModel.from_pretrained("Safetensors/CLIP").to(DEVICE).eval()
 CLIPTokenizer = AutoTokenizer.from_pretrained("Safetensors/CLIP")
-CLIPLock=threading.Lock()
-SAMLock=threading.Lock()
-GroundingDINOLock=threading.Lock()
 ########################################################将局部mask转成全局mask
 def MaskToGlobal(mask, box, img_size):
     # 解析参数
@@ -37,15 +34,11 @@ def MaskToGlobal(mask, box, img_size):
     return global_mask
 ########################################################计算CLIP分数
 def CLIPScore(image, prompt:str):
-    try:
-        CLIPLock.acquire()
-        with torch.no_grad():
-            image_inputs = CLIPProcessor(images=image, return_tensors='pt').to(DEVICE)
-            text_inputs = CLIPTokenizer(prompt, return_tensors='pt', padding=True).to(DEVICE)
-            image_features = CLIPModel.get_image_features(**image_inputs)
-            text_features = CLIPModel.get_text_features(**text_inputs)
-    finally:
-        CLIPLock.release()
+    with torch.no_grad():
+        image_inputs = CLIPProcessor(images=image, return_tensors='pt').to(DEVICE)
+        text_inputs = CLIPTokenizer(prompt, return_tensors='pt', padding=True).to(DEVICE)
+        image_features = CLIPModel.get_image_features(**image_inputs)
+        text_features = CLIPModel.get_text_features(**text_inputs)
     similarity = F.cosine_similarity(image_features, text_features, dim=1).item()
     similarity=(similarity+1)/2
     return similarity
@@ -58,33 +51,25 @@ def GroundingDINO_SAM2(image,text_prompt:str,crop_box=None):
     oy=crop_box[1]
     #运行获取sam结果和grounding结果
     def run(text_threshold:float,box_threshold:float):
-        try:
-            GroundingDINOLock.acquire()
-            inputs = GroundingProcessor(images=image, text=text_prompt, return_tensors="pt").to(DEVICE)
-            with torch.no_grad():
-                outputs = GroundingModel(**inputs)
-            results = GroundingProcessor.post_process_grounded_object_detection(
-                outputs,
-                inputs.input_ids,
-                threshold=box_threshold,
-                text_threshold=text_threshold,
-                target_sizes=[image.size[::-1]]
-            )
-        finally:
-            GroundingDINOLock.release()
+        inputs = GroundingProcessor(images=image, text=text_prompt, return_tensors="pt").to(DEVICE)
+        with torch.no_grad():
+            outputs = GroundingModel(**inputs)
+        results = GroundingProcessor.post_process_grounded_object_detection(
+            outputs,
+            inputs.input_ids,
+            threshold=box_threshold,
+            text_threshold=text_threshold,
+            target_sizes=[image.size[::-1]]
+        )
         # get the box prompt for SAM 2
-        try:
-            SAMLock.acquire()
-            input_boxes = results[0]["boxes"].cpu().numpy()
-            SamPredictor.set_image(np.array(image))
-            masks, scores, logits = SamPredictor.predict(
-                point_coords=None,
-                point_labels=None,
-                box=input_boxes,
-                multimask_output=False,
-            )
-        finally:
-            SAMLock.release()
+        input_boxes = results[0]["boxes"].cpu().numpy()
+        SamPredictor.set_image(np.array(image))
+        masks, scores, logits = SamPredictor.predict(
+            point_coords=None,
+            point_labels=None,
+            box=input_boxes,
+            multimask_output=False,
+        )
         """
         Post-process the output of the model to get the masks, scores, and logits for visualization
         """

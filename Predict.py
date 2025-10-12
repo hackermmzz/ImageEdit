@@ -8,7 +8,8 @@ def PredictByMagicBrush():
     #获取所有待测试的数据
     target={}
     dir="data/MagicBrush"
-    for folder in os.listdir(dir):
+    trush=[125017,442231]
+    for folder in trush:#os.listdir(dir):
         path=f"{dir}/{folder}"
         cnt=len(os.listdir(path))//3
         target_img=f"{path}/source_1.png"
@@ -26,6 +27,8 @@ def PredictByMagicBrush():
     #随机选择3轮次的进行编辑
     ret=[]
     for i in range(TEST_CNT):
+        if len(target)==0:
+            break
         idx=random.randint(0,len(target)-1)
         ret.append(target[idx])
         target=target[:idx]+target[idx+1:]

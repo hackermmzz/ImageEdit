@@ -127,6 +127,7 @@ def ProcessImageEdit(img_path:str,prompt,dir:str):
     Debug("整体耗时:",cost_total())
 #运行逻辑
 def Run():
+    #
     data=None
     if not TEST_MODE:
         try:
@@ -159,6 +160,7 @@ def Run():
         with ThreadPoolExecutor(max_workers=min(len(tasks),65535)) as executor:
             futures = [executor.submit(task) for task in tasks]
     else:
+        THREAD_OBJECT.logfile=DEBUG_FILE
         for task in tasks:
             task()
 if __name__=="__main__":

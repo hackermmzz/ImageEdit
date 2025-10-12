@@ -8,25 +8,21 @@ from functools import partial
 import json
 import time
 import threading
+import torch
+import gc
 ##################################
 VLMProcessor=None
 VLMModel=None
-VLMLock=threading.Lock()
 ##################################加载本地模型
 def LoadVLM():
-    QUANT_CONFIG = {
-        "load_in_4bit": False,
-        "load_in_8bit": False,
-        "low_cpu_mem_usage": False,
-    }
     global VLMModel,VLMProcessor
-    VLMProcessor = AutoProcessor.from_pretrained("zai-org/GLM-4.1V-9B-Thinking")
+    dir= "./Safetensors/GLM"
+    VLMProcessor = AutoProcessor.from_pretrained(dir)
     VLMModel = AutoModelForImageTextToText.from_pretrained(
-        "zai-org/GLM-4.1V-9B-Thinking",
-        trust_remote_code=True,  # 必须开启（多模态模型结构需远程代码）
-        device_map="auto",  # 自动分配设备（优先用GPU，剩余放CPU）
-        **QUANT_CONFIG  # 启用显存优化（若CPU运行，删除这一行）
-        ).to(DEVICE).eval()
+        dir,
+        device_map=0,  # 自动分配设备（优先用GPU，剩余放CPU）
+        torch_dtype=torch.bfloat16,
+        ).eval()
 ######################################调用本地部署模型需要提取答案
 def ExtractAnswer(data:str):
         think=""
@@ -42,72 +38,72 @@ def ExtractAnswer(data:str):
         return think,answer
 #####################################API基础调用
 def AnswerImageByAPI(images:list,role_tip:str,question:str,client,model):
-    for x in images:
-        if x is None:
-            return None
-    client=client()
-    response = client.chat.completions.create(
-    # 指定您创建的方舟推理接入点 ID，此处已帮您修改为您的推理接入点 ID
-    model=model,
-    messages=[
+    try:
+        for x in images:
+            if x is None:
+                return None
+        client_=client()
+        response = client_.chat.completions.create(
+            # 指定您创建的方舟推理接入点 ID，此处已帮您修改为您的推理接入点 ID
+            model=model,
+            messages=[
+                {
+                    "role":"system",
+                    "content": [
+                            {"type": "text", "text": f"{role_tip}"},
+                    ]
+                },
+                {
+                    "role": "user",
+                    "content": [
+                            {"type": "text", "text": f"{question}"},
+                    ]+
+                    [ {"type": "image_url", "image_url": {"url": encode_image(image.resize((512,512)))}} for image in images]
+                    ,
+                },
+            ],
+        )
+        return (response.choices[0].message.content)
+    except Exception as e:
+        Debug("AnswerImageByAPI:",e)
+        return AnswerImageByAPI(images,role_tip,question,client,model)
+#####################################本地调用
+def AnswerImageByPipe(images:list,role_tip:str,question:str):
+    LoadVLM()
+    #################
+    processor=VLMProcessor
+    model=VLMModel
+        #
+    messages = [
         {
             "role":"system",
-            "content": [
-                    {"type": "text", "text": f"{role_tip}"},
-            ]
+            "content":[
+                {"type": "text", "text": f"{role_tip}"},
+            ]    
         },
         {
             "role": "user",
-            "content": [
-                    {"type": "text", "text": f"{question}"},
-            ]+
-            [ {"type": "image_url", "image_url": {"url": encode_image(image)}} for image in images]
-            ,
-        }
-    ],
-    )
-    return (response.choices[0].message.content)
-#####################################本地调用
-def AnswerImageByPipe(images:list,role_tip:str,question:str):
-    try:
-        VLMLock.acquire()
-        if processor==None:
-            LoadVLM()
-        #################
-        processor=VLMProcessor
-        model=VLMModel
-            #
-        messages = [
-            {
-                "role":"system",
-                "content":[
-                    {"type": "text", "text": f"{role_tip}"},
-                ]    
-            },
-            {
-                "role": "user",
-                "content": [
-                    {"type": "image"} for _ in range(len(images))
-                    ]+[{"type": "text", "text": question}]
-            },
-        ]
-        # Prepare inputs
-        prompt = processor.apply_chat_template(messages, add_generation_prompt=True)
-        inputs = processor(text=prompt, images=images, return_tensors="pt")
-        inputs = inputs.to(DEVICE)
-        # Generate outputs
-        generated_ids = model.generate(**inputs, max_new_tokens=65535)
-        generated_texts = processor.batch_decode(
-            generated_ids,
-            skip_special_tokens=True,
-        )
-        #对回复进行处理
-        res=generated_texts[0]
-        #   
-        _,res=ExtractAnswer(res)
-    finally:
-        VLMLock.release()
-    return res
+            "content":  [{"type": "image","url":encode_image(image.resize((512,512)))} for image in images]
+                        +
+                        [{"type": "text", "text": question}]
+        },
+    ]
+    # Prepare inputs
+    with torch.no_grad():
+        inputs = processor.apply_chat_template(
+            messages,
+            add_generation_prompt=True,
+            tokenize=True,
+            return_dict=True,
+            return_tensors="pt",
+        ).to(DEVICE)
+        outputs = model.generate(**inputs, max_new_tokens=3000)
+        outputs = processor.decode(outputs[0][inputs["input_ids"].shape[1]:], skip_special_tokens=False)
+    #   
+    think,answer=ExtractAnswer(outputs)
+    #卸载VLM
+    UnLoadModel(processor,model)
+    return answer
 #####################################调用
 def AnswerImage(images:list,role_tip:str,question:str):
     try:

@@ -15,23 +15,14 @@ from io import BytesIO
 import threading
 #######################################
 ImageEditPipe=None
-ImageEditPipeLock=threading.Lock()
 #######################################加载图像编辑模型
 def LoadImageEdit():
     global ImageEditPipe
-    # 配置4bit量化参数
-    QUANT_CONFIG = {
-                "load_in_4bit": True,
-                "load_in_8bit": False,
-                "bnb_4bit_quant_type": "nf4",       # NV推荐的NF4量化，适配A800
-                "bnb_4bit_compute_dtype": torch.bfloat16,  # 计算用bfloat16，A800原生支持
-                "bnb_4bit_use_double_quant": True,  # 双量化优化，减少参数冗余
-            }
+    dir="./Safetensors/QwenImageEdit"
     ImageEditPipe = QwenImageEditPipeline.from_pretrained(
-        "Qwen/Qwen-Image-Edit",
+        dir,
         device_map="cuda",  # 自动分配设备
         torch_dtype=torch.bfloat16,
-        **QUANT_CONFIG
     )
     ImageEditPipe.set_progress_bar_config(disable=None)
 ###############################优化指令
@@ -57,7 +48,7 @@ def polish_edit_prompt(img,prompt):
 def ImageEditByAPI(image,prompt:str,neg_prompt:str)->Image.Image:
     client = Ark( 
         base_url="https://ark.cn-beijing.volces.com/api/v3", 
-        api_key="0768c60e-15da-44c5-9205-2ebf5a1594cf", 
+        api_key="91d86bec-d21e-4c87-b121-bbf249b50345", 
     )
     
     input=image
@@ -85,30 +76,30 @@ def ImageEditByAPI(image,prompt:str,neg_prompt:str)->Image.Image:
     # image=image.resize((w,h))
     return image
 ###################################图像编辑
-def ImageEditByPipe(image,prompt:str,neg_prompt:str):
-    try:
-        ImageEditPipeLock.acquire()
-        
-        global ImageEditPipe
-        if ImageEditPipe==None:
-            LoadImageEdit()
-        #
-        inputs = {
-            "image": image,
-            "prompt": prompt,
-            "generator": torch.manual_seed(random.randint(0,np.iinfo(np.int32).max)),
-            "true_cfg_scale": 4,
-            "negative_prompt": neg_prompt,
-            "num_inference_steps": 50,
-            "guidance_scale":6,
-        }
-        res=None
-        with torch.inference_mode():
-            output = ImageEditPipe(** inputs)
-            output_image = output.images[0]
-        res=output_image.convert("RGB")
-    finally:
-        ImageEditPipeLock.release()
+def ImageEditByPipe(image:Image.Image,prompt:str,neg_prompt:str):
+    global ImageEditPipe
+    if ImageEditPipe==None:
+        LoadImageEdit()
+    #
+    size=(1024,1024)
+    #
+    inputs = {
+        "image": [image.resize(size)],
+        "prompt": prompt,
+        "generator": torch.manual_seed(0),
+        "true_cfg_scale": 4.0,
+        "negative_prompt": neg_prompt,
+        "num_inference_steps": 40,
+        "guidance_scale": 1.0,
+        "num_images_per_prompt": 1,
+        "height":size[0],
+        "width":size[1]
+    }
+    res=None
+    with torch.inference_mode():
+        output = ImageEditPipe(**inputs)
+        res = output.images[0]
+    res=res.convert("RGB")
     return res
 ###############################给定指令进行编辑
 def EditImage(image,prompt:str,negative_prompt_list=None):

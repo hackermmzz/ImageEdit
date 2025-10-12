@@ -10,20 +10,45 @@ import ast
 import xml.etree.ElementTree as ET
 from Inpainting import *
 from ImageSearchAgent import *
+
+def Process_Inpainting(image:Image.Image,task:str,neg_prompts:list,epoch:int,global_itr_cnt:int,dir:str):
+    #获取操作区域
+    source,target,box=GetSoureAndTargetArea(image,task)
+    Debug("GetSoureAndTargetArea:",source,",",target,",",box)
+    #获取指定编辑区域
+    Debug("正在获取mask区域...")
+    mask=None
+    if source !=None:
+        mask=GroundingDINO_SAM2(image,source,box)["white_mask"]
+    else:
+        mask=GetBoxMask(image.size[0],image.size[1],[box])
+    Debug("获取成功!")
+    DebugSaveImage(mask,f"mask_{epoch}_{global_itr_cnt}.png",dir=dir)
+    #
+    Debug("正在进行图像编辑...")
+    output_img=Inpainting(image,mask,target if target else "fill the area without any anything",neg_prompts)
+    output_img=output_img.resize(image.size)
+    Debug("图像编辑完成!")
+    DebugSaveImage(output_img,f"edited_image_{epoch}_{global_itr_cnt}.png",dir=dir)
+    return output_img
+
 def Process_InpaintingByIpAdapter(image:Image.Image,task:str,neg_prompts:list,epoch:int,global_itr_cnt:int,dir:str):
     #获取操作区域
     source,target,box=GetSoureAndTargetArea(image,task)
+    Debug("GetSoureAndTargetArea:",source,",",target,",",box)
     if  target==None:
         Debug("Process_InpaintingByIpAdapter:","target不能为None",source,target)
         return image
     #获取ip图片
+    Debug("正在获取ip adapter...")
     ip_adapter=GetTargetImage(target)
+    Debug("获取成功!")
     DebugSaveImage(ip_adapter,f"ip_adapter_{epoch}_{global_itr_cnt}.png",dir=dir)
     #获取指定编辑区域
     Debug("正在获取mask区域...")
     mask=None
     if source !=None:
-        mask=GroundingDINO_SAM2(image,source,[box])["cutOut_img"]
+        mask=GroundingDINO_SAM2(image,source,box)["white_mask"]
     else:
         mask=GetBoxMask(image.size[0],image.size[1],[box])
     Debug("获取成功!")
@@ -53,21 +78,7 @@ def Process_ByRedMask(image:Image.Image,task:str,neg_prompts:list,epoch:int,glob
     #局部补全
     return Process_Directly(cutout,f"Please work in the red area:{task}",neg_prompts,epoch,global_itr_cnt,dir)
     
-def Process_Inpainting(image:Image.Image,task:str,neg_prompts:list,epoch:int,global_itr_cnt:int,dir:str):
-    #获取操作对象
-    Debug("正在获取指定对象中...")
-    target_object=GetTaskOperateObject(image,task)
-    Debug("操作的目标是:",target_object)
-    res=GroundingDINO_SAM2(image,target_object, None)
-    mask=res["white_mask"]
-    DebugSaveImage(mask,f"mask_{epoch}_{global_itr_cnt}_{RandomImageFileName()}",dir)
-    #
-    Debug("正在进行图像编辑...")
-    output_img=Inpainting(image,mask,task,neg_prompts)
-    output_img=output_img.resize(image.size)
-    Debug("图像编辑完成!")
-    DebugSaveImage(output_img,f"edited_image_{epoch}_{global_itr_cnt}.png",dir=dir)
-    return output_img
+
 
 def Process_Directly(image:Image.Image,task:str,neg_prompts:list,epoch:int,global_itr_cnt:int,dir:str):
     #直接编辑
@@ -206,7 +217,7 @@ system_prompt=f'''
             你：
                 <call>EditImage(image,"change cat's color to black cross white",["low quality"])</call>
             我："background changed"
-            你:  <call>EditImageByBox(image,"cat","change cat's color to black cross white",["low quality","background changed"])</call>
+            你:  <call>EditImageByBox(image,"change cat's color to black cross white",["low quality","background changed"])</call>
             我: "..."
             ......
     '''
@@ -216,44 +227,37 @@ messages=[
     {"role":"system","content":f"{system_prompt}"},
 ]
 '''
-messages=[
-        {
-            "role":"system",
-            "content": [
-                    {"type": "text", "text": f"{system_prompt}"},
-            ]
-        },
-    ]
-preImg=None
 def ProcessByAgent(image:Image.Image,task:str,task_type:str,neg_prompts:list,epoch:int,global_itr_cnt:int,dir:str)->Image.Image:
-    #
-    global preImg
+    #初始化以下
+    if not hasattr(THREAD_OBJECT, 'messages'):
+        THREAD_OBJECT.messages=[
+            {
+                "role":"system",
+                "content": [
+                        {"type": "text", "text": f"{system_prompt}"},
+                ]
+            },
+        ]
+        THREAD_OBJECT.preImgs=None
+    #   
     def Ask(image,question):
-        #messages.append({"role": "user", "content": f'''指令是:{task},原始图像是 image'''})
         msg=[{"type": "text", "text":question}]
         if image:
             msg+=[{"type": "image_url", "image_url": {"url": encode_image(image)}}]
-        messages.append({"role": "user","content":msg})
+        THREAD_OBJECT.messages.append({"role": "user","content":msg})
     def Answer():
         client=client1()
         response = client.chat.completions.create(
             # 指定您创建的方舟推理接入点 ID，此处已帮您修改为您的推理接入点 ID
             model="qwen3-vl-plus",
-            messages=messages,
+            messages=THREAD_OBJECT.messages,
+            extra_body={
+            'enable_thinking': True,
+            "thinking_budget": 81920
+            },
         )
-        return (response.choices[0].message.content)
-        client = Ark(
-            # 此为默认路径，您可根据业务所在地域进行配置
-            base_url="https://ark.cn-beijing.volces.com/api/v3",
-            # 从环境变量中获取您的 API Key。此为默认方式，您可根据需要进行修改
-            api_key="da11cd64-e1ac-452f-8982-238770638e98",
-        )
-        completion = client.chat.completions.create(
-            # 指定您创建的方舟推理接入点 ID，此处已帮您修改为您的推理接入点 ID
-            model="deepseek-v3-250324",
-            messages=messages
-        )
-        return completion.choices[0].message.content    
+        Debug("reason:",response.choices[0].message.reasoning_content)
+        return (response.choices[0].message.content)  
     
     def EditImageDirectly(image,prompt,np=None):
         return Process_Directly(image,prompt,np,epoch,global_itr_cnt,dir)
@@ -266,20 +270,19 @@ def ProcessByAgent(image:Image.Image,task:str,task_type:str,neg_prompts:list,epo
     def InpaintingByMaskAndIpAdapter(image:Image.Image,prompt:str,np=None):
         return Process_InpaintingByIpAdapter(image,prompt,np,epoch,global_itr_cnt,dir)
     #
-    global messages
     if global_itr_cnt==1:
-        messages=messages[:1]
-        Ask(image, f'''指令是:{task},原始图像是 image''')
+        THREAD_OBJECT.messages=THREAD_OBJECT.messages[:1]
+        Ask(image.resize((512,512)), f'''指令是:{task},原始图像是 image''')
     else:
-        Ask(preImg,"负反馈:{neg_prompts}")
+        Ask(THREAD_OBJECT.preImg.resize((512,512)),"负反馈:{neg_prompts}")
     res=Answer()
-    messages.append({"role": "assistant", "content": res})
+    THREAD_OBJECT.messages.append({"role": "assistant", "content": res})
     call = ET.fromstring(res).text
     Debug("本次调用为:",call)
     namespace={**globals(),**locals()}
     exec(f"edited_img={call}",namespace)
     edited_img=namespace["edited_img"].copy().convert("RGB")
-    preImg=edited_img
+    THREAD_OBJECT.preImg=edited_img
     return edited_img
 
 
@@ -289,4 +292,4 @@ def ProcessByAgent(image:Image.Image,task:str,task_type:str,neg_prompts:list,epo
 ################################################################
 if __name__=="__main__":
     image=Image.open("image.png").convert("RGB")
-    Process_InpaintingByIpAdapter(image,"add a cat with black and white color  on the sofa ",None,1,1,"debug")
+    Process_Inpainting(image,"add a cat with black and white color  on the sofa ",None,1,1,"debug")
