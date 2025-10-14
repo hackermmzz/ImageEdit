@@ -1,19 +1,6 @@
 from LLM import *
 from VLM import *
 import threading
-################################模型池
-'''AllModel={}
-def PushModel(name:str,path:str):
-    if name not in AllModel:
-        AllModel[name]=[path,time.time(),None]
-def GetModel(name:str):
-    if name in AllModel:
-        d=AllModel[name]
-        while d[1]==None:
-            
-        return d[1]
-    return None
-def '''
 ################################
 #获取任务
 def GetTask(image,description:str):
@@ -23,8 +10,11 @@ def GetTask(image,description:str):
         lst=json.loads(answer)
         if type(lst)!=list:
             raise Exception("type is not list")
+        elif len(lst)!=0 and type(lst[0])!=list:
+            raise Exception("type element is not list!")
         return lst
     except Exception as e:
+        Debug("GetTask:",e," ",answer)
         return GetTask(image,Expert1_Prompt,description)
 #获取编辑后的全局打分
 def GetImageGlobalScore(source,target,description:str):

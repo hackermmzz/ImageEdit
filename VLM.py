@@ -23,19 +23,6 @@ def LoadVLM():
         device_map=0,  # 自动分配设备（优先用GPU，剩余放CPU）
         torch_dtype=torch.bfloat16,
         ).eval()
-######################################调用本地部署模型需要提取答案
-def ExtractAnswer(data:str):
-        think=""
-        answer=""
-        beg0=data.find("<answer>")
-        end0=data.find("</answer>") 
-        if beg0!=-1 and end0!=-1:
-            answer=data[beg0+len("<answer>"):end0]
-        beg1=data.find("<think>")
-        end1=data.find("</think>")
-        if beg1!=-1 and end1!=-1:
-            think=data[beg1+len("<think>"):end1]
-        return think,answer
 #####################################API基础调用
 def AnswerImageByAPI(images:list,role_tip:str,question:str,client,model):
     try:
@@ -68,12 +55,23 @@ def AnswerImageByAPI(images:list,role_tip:str,question:str,client,model):
         Debug("AnswerImageByAPI:",e)
         return AnswerImageByAPI(images,role_tip,question,client,model)
 #####################################本地调用
-def AnswerImageByPipe(images:list,role_tip:str,question:str):
+def AnswerImageByPipe(images:list,role_tip:str,question:str,message=None):
+    ##分离think和answer
+    def ExtractAnswer(data:str):
+        think=""
+        answer=""
+        beg0=data.find("<answer>")
+        end0=data.find("</answer>") 
+        if beg0!=-1 and end0!=-1:
+            answer=data[beg0+len("<answer>"):end0]
+        beg1=data.find("<think>")
+        end1=data.find("</think>")
+        if beg1!=-1 and end1!=-1:
+            think=data[beg1+len("<think>"):end1]
+        return think,answer
     LoadVLM()
     #################
-    processor=VLMProcessor
-    model=VLMModel
-        #
+    global VLMModel,VLMProcessor
     messages = [
         {
             "role":"system",
@@ -88,26 +86,35 @@ def AnswerImageByPipe(images:list,role_tip:str,question:str):
                         [{"type": "text", "text": question}]
         },
     ]
+    if message!=None:
+        messages=message
     # Prepare inputs
     with torch.no_grad():
-        inputs = processor.apply_chat_template(
+        inputs = VLMProcessor.apply_chat_template(
             messages,
             add_generation_prompt=True,
             tokenize=True,
             return_dict=True,
             return_tensors="pt",
         ).to(DEVICE)
-        outputs = model.generate(**inputs, max_new_tokens=3000)
-        outputs = processor.decode(outputs[0][inputs["input_ids"].shape[1]:], skip_special_tokens=False)
+        outputs = VLMModel.generate(**inputs, max_new_tokens=3000)
+        outputs = VLMProcessor.decode(outputs[0][inputs["input_ids"].shape[1]:], skip_special_tokens=False)
     #   
     think,answer=ExtractAnswer(outputs)
+    Debug("AnswerImageByPipe深度思考:",think)
     #卸载VLM
-    UnLoadModel(processor,model)
+    del outputs
+    del inputs
+    del VLMModel 
+    del VLMProcessor
+    gc.collect()
+    torch.cuda.empty_cache()
+    #
     return answer
 #####################################调用
-def AnswerImage(images:list,role_tip:str,question:str):
+def AnswerImage(images:list,role_tip:str,question:str,force_API=False):
     try:
-        if Enable_Local_VLM:
+        if Enable_Local_VLM and not force_API:
             return AnswerImageByPipe(images,role_tip,question)
         else:
             return AnswerImageByAPI(images,role_tip,question,client1,"qwen3-vl-plus")

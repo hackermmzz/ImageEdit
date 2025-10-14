@@ -8,8 +8,7 @@ def PredictByMagicBrush():
     #获取所有待测试的数据
     target={}
     dir="data/MagicBrush"
-    trush=[125017,442231]
-    for folder in trush:#os.listdir(dir):
+    for folder in os.listdir(dir):
         path=f"{dir}/{folder}"
         cnt=len(os.listdir(path))//3
         target_img=f"{path}/source_1.png"

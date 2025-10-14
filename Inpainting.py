@@ -48,8 +48,13 @@ def Inpainting(image:Image.Image,mask:Image.Image,prompt:str,negative_prompt_lis
         negative_prompt=None
     #   
     LoadInpaintingModel0()
+    global InpaintingPipe0
     res = InpaintingPipe0(prompt=prompt, image=image, mask_image=mask,height=1024,width=1024,negative_prompt=negative_prompt).images[0]
-    UnLoadModel(InpaintingPipe0)
+    #卸载模型
+    del InpaintingPipe0
+    gc.collect()
+    torch.cuda.empty_cache()
+    #
     InpaintingPipe0=None
     
     return res.resize(image.size)
@@ -64,15 +69,21 @@ def InpaintingByIpAdapter(image:Image.Image,mask:Image.Image,prompt:str,adapter_
         negative_prompt=None
     #
     LoadInpaintingModel1()
+    global InpaintingPipe1
     res = InpaintingPipe1(prompt=prompt, image=image, mask_image=mask,height=1024,width=1024,ip_adapter_image=adapter_img,negative_prompt=negative_prompt).images[0]
-    UnLoadModel(InpaintingPipe1)
+    #卸载模型
+    del InpaintingPipe1
+    gc.collect()
+    torch.cuda.empty_cache()
+    #
     InpaintingPipe1=None
     return res.resize(image.size)
 #######################
 if __name__=="__main__":
     img=Image.open(input("请输入图片:")).convert("RGB")
     mask=Image.open(input("请输入mask:")).convert("L")
-    ada=Image.open(input("请输入ip:")).convert("RGB")
     des=input("请输入提示词:")
-    res=InpaintingByIpAdapter(img,mask,des,ada)
+    res=Inpainting(img,mask,des)
     res.save("output.png")
+    while True:
+        pass

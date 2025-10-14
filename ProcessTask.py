@@ -149,27 +149,31 @@ def Process_BackgroundChange(image:Image.Image,task:str,neg_prompts:list,epoch:i
     return Process_Directly(image,task,neg_prompts,epoch,global_itr_cnt,dir)
 
 def ProcessTask(image:Image.Image,task:str,task_type:str,neg_prompts:list,epoch:int,global_itr_cnt:int,dir:str)->Image.Image:
-    if Enabel_Agent:
-        return ProcessByAgent(image,task,task_type,neg_prompts,epoch,global_itr_cnt,dir)
-    #
-    mp={
-        "add":Process_Add,
-        "remove":Process_Remove,
-        "replace":Process_Replace,
-        "global_style_transfer":Process_GlobalStyleTransfer,
-        "perspective_shift":Process_PerspectiveShift,
-        "attribute_change":Process_AttributeChange,
-        "move":Process_Move,
-        "modify":Process_Modify,
-        "background_change":Process_BackgroundChange
-    }
-    
-    if task_type in mp:
-        fun=mp[task_type]
-        return fun(image,task,neg_prompts,epoch,global_itr_cnt,dir)
-    else:
-        Debug(f"任务异常!任务为: {task} ,类型为: {task_type} ")
-        return Process_Directly(image,task,task_type,neg_prompts,epoch,global_itr_cnt,dir)
+    try:
+        if Enabel_Agent:
+            return ProcessByAgent(image,task,task_type,neg_prompts,epoch,global_itr_cnt,dir)
+        #
+        mp={
+            "add":Process_Add,
+            "remove":Process_Remove,
+            "replace":Process_Replace,
+            "global_style_transfer":Process_GlobalStyleTransfer,
+            "perspective_shift":Process_PerspectiveShift,
+            "attribute_change":Process_AttributeChange,
+            "move":Process_Move,
+            "modify":Process_Modify,
+            "background_change":Process_BackgroundChange
+        }
+        
+        if task_type in mp:
+            fun=mp[task_type]
+            return fun(image,task,neg_prompts,epoch,global_itr_cnt,dir)
+        else:
+            Debug(f"任务异常!任务为: {task} ,类型为: {task_type} ")
+            return Process_Directly(image,task,task_type,neg_prompts,epoch,global_itr_cnt,dir)
+    except Exception as e:
+        Debug("ProcessTask:",e)
+        return ProcessTask(image,task,task_type,neg_prompts,epoch,global_itr_cnt,dir)
 #####################纹理修复
 def TextureFix(input_img:Image.Image,edited_img:Image.Image,task:str,neg_prompts:list):
     output_img=ImageFixByAPI([input_img,edited_img],f'''fixing the right image's texture by left image and don't change or add or remove anything ''')
@@ -192,33 +196,33 @@ def TextureFix(input_img:Image.Image,edited_img:Image.Image,task:str,neg_prompts
     return output_img,score
 ###############################引入智能代理来选择如何执行
 system_prompt=f'''
-        你现在是一个图像编辑专家，我将给你一个图像和一个图像编辑指令，你需要凭借我给你的各种工具完成图像编辑达到满意的效果。
-        你必须遵循以下规则。
-        (1)所有的图像均是PIL对象
-        (2)你可以调用以下函数
-            EditImageDirectly(image,prompt:str,negative_prompt_list=None) 参数为PIL图像，编辑指令，以及负反馈字符串列表,返回值是编辑好的图像
-            EditImageByBox(image,prompt:str,negative_prompt_list=None)参数为PIL图像，编辑指令，以及负反馈字符串列表,返回值是编辑好的图像
-            EditImageByMask(image,prompt:str,negative_prompt_list=None)参数为PIL图像，编辑指令，以及负反馈字符串列表,返回值是编辑好的图像
-            InpaintingByMask(image:Image.Image,prompt:str,negative_prompt_list=None) 参数为PIL图像，编辑指令,以及负反馈字符串列表,返回值是编辑好的图像
-            InpaintingByMaskAndIpAdapter(image:Image.Image,prompt:str,negative_prompt_list=None)参数为PIL图像，编辑指令,以及负反馈字符串列表,返回值是编辑好的图像
-        (3)对于以上工具，我将给出具体功能和适用场景
-            EditImageDirectly:这个函数是调用的全局编辑模型进行图像编辑，这个函数所有指令都适用，因为是单纯对图像进行全局编辑，所以全局类型的变换必须使用它，比如把画面改成傍晚，卡通画，视角改变等等，当然局部修改也可以使用它.它的效果依赖于编辑模型的能力和prompt的精确度
-            EditImageByBox:这个函数是调用的全局编辑模型进行图像编辑,它会预处理一下图片，在原图上画出一个矩形框，来框选要操作的区域，这个函数适用于需要精准定位的编辑指令（如在人头部画一个帽子，便会在人头顶画一个红色区域以此提醒编辑模型），不适合全局类型的修改。它的效果依赖于模型的能力以及框选区域的准确性。
-            EditImageByMask:这个函数是调用的全局编辑模型进行图像编辑,它会预处理一下图片，使用红色填充满要操作的区域提示编辑模型，这个函数适合用于操作单个物体且编辑指令不依赖原物体（如移除树上的鸟、将杯子替换为蛋糕）。它的效果依赖于模型的能力以及填充区域的准确性。
-            InpaintingByMask:这个函数是调用inpainting模型进行局部重绘的图像编辑，函数会自动将从指令里面获取mask区域和重新绘制的object，这个函数适合用于局部修改，（如prompt为将杯子移除，那么mask就会为杯子，在该区域进行重新绘制）。它的效果依赖于prompt的准确性以及mask的准确性。
-            InpaintingByMaskAndIpAdapter:这个函数是调用inpainting模型进行局部重绘的图像编辑，函数会自动将从指令里面获取合适的mask区域和inpainting的物体，但是在重绘的时候会使用一张符合prompt图片作为参照,这个函数适合用于向图片内添加单个物体（比如prompt为在天空生成一只红色长嘴丹顶鹤，它便会在合适区域去生成丹顶鹤）。它的效果依赖于prompt的准确性以及mask的准确性，以及ip图片的匹配性质。但是相对于增添物体，这个函数更好。
-        (4)你第一次的编辑任务只能调用EditImageDirectly函数。
-        (5)你需要根据我给你的工具，充分利用好工具，得到满意的效果
-        (6)每次编辑，你需要给我你需要调用工具的完整调用代码<call>function call</call>
-        (7)必须按照第(5)个规则给出你的回答,不准出现其他任何无关内容
-        (8)每次调用完，我都会给你结果，结果只包含为负反馈（编辑出错的地方，你需要根据负反馈去调整你的编辑策略，选择最合适的工具完成本轮编辑
-        (9)我将给你一次完整的工作流程。例如：
-            我：编辑指令是"change cat's color to black cross white",原始图像是image
-            你：
+        You are now an image editing expert and I will give you an image and an image editing instruction, you need to complete the image editing to achieve satisfactory results with the various tools I have given you.
+        You have to follow the following rules.
+        (1) All images are PIL objects
+        (2) You can call the following functions
+            EditImageDirectly(image,prompt:str,negative_prompt_list=None) The parameters are the PIL image, the editing command, and a list of negative feedback strings, and the return value is the edited image.
+            EditImageByBox(image,prompt:str,negative_prompt_list=None)The parameters are the PIL image, the editing command, and a list of negative feedback strings, and the return value is the edited image.
+            EditImageByMask(image,prompt:str,negative_prompt_list=None)The parameters are the PIL image, the editing command, and a list of negative feedback strings, and the return value is the edited image.
+            InpaintingByMask(image:Image.Image,prompt:str,negative_prompt_list=None) The parameters are the PIL image, the editing command, and a list of negative feedback strings, and the return value is the edited image.
+            InpaintingByMaskAndIpAdapter(image:Image.Image,prompt:str,negative_prompt_list=None)The parameters are the PIL image, the editing command, and a list of negative feedback strings, and the return value is the edited image.
+        (3)For the above tools, I will give specific features and application scenarios
+            EditImageDirectly:This function calls the global editing model for image editing, all commands of this function are applicable, because it is purely for global editing of the image, so it must be used for global types of transformations, such as changing the screen to evening, cartooning, changing the perspective and so on, but of course it can also be used for local modifications. Its effect depends on the ability to edit the model and the accuracy of the prompt.
+            EditImageByBox:This function is a call to the global editing model for image editing, it will pre-process the image, draw a rectangular box on the original image to select the area to be operated, this function is suitable for editing commands that require precise positioning (such as drawing a hat on a person's head, it will be drawn on the top of the head of the person to remind the editing model of a red area), is not suitable for global type of modification. Its effect depends on the ability of the model and the accuracy of the boxed area.
+            EditImageByMask:This function is a call to the global editing model for image editing, it will pre-process the image and fill the area to be manipulated with red colour to prompt the editing model, this function is suitable for manipulating a single object and the editing commands do not depend on the original object (e.g. removing a bird from a tree, replacing a cup with a cake). Its effect depends on the capabilities of the model and the accuracy of the filled area.
+            InpaintingByMask:This function is to call inpainting model for local repainting image editing, the function will automatically be from the command inside the mask area and redraw the object, this function is suitable for local modification, (such as the prompt for the cup will be removed, then the mask will be the cup, in the region of the redrawing). Its effect depends on the accuracy of the prompt and the accuracy of the mask.
+            InpaintingByMaskAndIpAdapter:This function is to call the inpainting model for local repainting image editing, the function will automatically get from the command inside the appropriate mask area and inpainting objects, but in the repainting will be used to meet the prompt picture as a reference, this function is suitable for adding a single object to the picture (such as the prompt for the generation of a long-billed red crane in the sky). (for example, if the prompt is to generate a red billed crane in the sky, it will generate the crane in the appropriate area). Its effect depends on the accuracy of the prompt and the accuracy of the mask, as well as the matching nature of the ip image. But this function is better than adding objects.
+        (4)Your first editing task can only call the EditImageDirectly function.
+        (5)You need to make full use of the tool according to the tool I give you to get satisfactory results
+        (6)Every time you edit, you need to give me the full call code of the tool you need to call <call>function call</call>.
+        (7)You must give your answer according to the rule (5), no other irrelevant content is allowed.
+        (8)After each call, I will give you the result, the result only contains for negative feedback (editing error, you need to adjust your editing strategy according to the negative feedback, choose the most suitable tool to complete the round of editing)
+        (9) I will give you a complete workflow once. For example:
+            I：The editing instruction is "change cat's color to black cross white",and the original image is "image"
+            You：
                 <call>EditImage(image,"change cat's color to black cross white",["low quality"])</call>
-            我："background changed"
-            你:  <call>EditImageByBox(image,"change cat's color to black cross white",["low quality","background changed"])</call>
-            我: "..."
+            I："background changed"
+            You:  <call>EditImageByBox(image,"change cat's color to black cross white",["low quality","background changed"])</call>
+            I: "..."
             ......
     '''
 
@@ -243,10 +247,12 @@ def ProcessByAgent(image:Image.Image,task:str,task_type:str,neg_prompts:list,epo
     def Ask(image,question):
         msg=[{"type": "text", "text":question}]
         if image:
-            msg+=[{"type": "image_url", "image_url": {"url": encode_image(image)}}]
+            msg+=[{"type": "image", "url": encode_image(image)}]
+            #msg+=[{"type": "image_url", "image_url": {"url": encode_image(image)}}]
         THREAD_OBJECT.messages.append({"role": "user","content":msg})
     def Answer():
-        client=client1()
+        return AnswerImageByPipe([],"","",THREAD_OBJECT.messages)
+        '''client=client1()
         response = client.chat.completions.create(
             # 指定您创建的方舟推理接入点 ID，此处已帮您修改为您的推理接入点 ID
             model="qwen3-vl-plus",
@@ -257,7 +263,7 @@ def ProcessByAgent(image:Image.Image,task:str,task_type:str,neg_prompts:list,epo
             },
         )
         Debug("reason:",response.choices[0].message.reasoning_content)
-        return (response.choices[0].message.content)  
+        return (response.choices[0].message.content)  '''
     
     def EditImageDirectly(image,prompt,np=None):
         return Process_Directly(image,prompt,np,epoch,global_itr_cnt,dir)
@@ -272,13 +278,13 @@ def ProcessByAgent(image:Image.Image,task:str,task_type:str,neg_prompts:list,epo
     #
     if global_itr_cnt==1:
         THREAD_OBJECT.messages=THREAD_OBJECT.messages[:1]
-        Ask(image.resize((512,512)), f'''指令是:{task},原始图像是 image''')
+        Ask(image.resize((512,512)), f'''the instruction is:{task},and the original image is "image"''')
     else:
-        Ask(THREAD_OBJECT.preImg.resize((512,512)),"负反馈:{neg_prompts}")
+        Ask(THREAD_OBJECT.preImg.resize((512,512)),"the negitive feedback of the edited image is :{neg_prompts}")
     res=Answer()
     THREAD_OBJECT.messages.append({"role": "assistant", "content": res})
     call = ET.fromstring(res).text
-    Debug("本次调用为:",call)
+    Debug("This turn call is:",call)
     namespace={**globals(),**locals()}
     exec(f"edited_img={call}",namespace)
     edited_img=namespace["edited_img"].copy().convert("RGB")

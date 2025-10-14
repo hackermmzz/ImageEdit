@@ -4,21 +4,21 @@ from torch import cuda
 from volcenginesdkarkruntime import Ark
 import os
 from openai import OpenAI
-from functools import partial
 from io import BytesIO
 import base64
 from PIL import Image
 import time
+import torch
 import threading
-from PIL import Image,ImageFilter,ImageDraw
+from PIL import Image,ImageDraw
 import gc
 ###############全局配置
 os.system("rm -rf debug/")
 os.system("mkdir debug")
 DEVICE = "cuda" if cuda.is_available() else "cpu"
-TEST_MODE=False	#测试模式将验证测试机
-PARALLE_MODE=TEST_MODE and True  #并行测试所有的数据集
-TEST_CNT=10
+TEST_MODE=True	#测试模式将验证测试机
+PARALLE_MODE=TEST_MODE and False  #并行测试所有的数据集
+TEST_CNT=1000
 DEBUG=True
 DEBUG_LOCK=None if not DEBUG else threading.Lock()
 DEBUG_OUTPUT=True
@@ -28,9 +28,9 @@ THREAD_OBJECT=threading.local() #存储线程级别的对象数据
 GlobalScoreThershold=7
 GlobalItrThershold=3
 ClipScoreThreshold=0.21
-Enable_Local_LLM=False
-Enable_Local_VLM=False
-Enable_Local_ImageEdit=False
+Enable_Local_LLM=True
+Enable_Local_VLM=True
+Enable_Local_ImageEdit=True
 Enable_TaskPolish=False
 Enable_TextureFix=False
 Enabel_Agent=True
@@ -455,7 +455,4 @@ def GetBoxMask(w,h,boxes):
         draw.rectangle([x1, y1, x2, y2], fill=255)  
     return image
 
-def UnLoadModel(*model):
-    for x in model:
-        del x
-    gc.collect()
+    
